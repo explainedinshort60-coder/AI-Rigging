@@ -619,22 +619,29 @@
       field('Bone', `<select data-k="bone">${boneOpts}</select>`) +
       field('Mode', `<select data-k="bind"><option value="rigid" ${l.bind !== 'mesh' ? 'selected' : ''}>Rigid (layer binding)</option><option value="mesh" ${l.bind === 'mesh' ? 'selected' : ''}>Mesh (bends, smart warp)</option></select>`) +
       (l.bind === 'mesh' ? field('Mesh cols / rows', `<div class="pair">${num('mCols', (l.mesh && l.mesh.cols) || 6, 1)}${num('mRows', (l.mesh && l.mesh.rows) || 6, 1)}</div>`) +
-        `<p class="note">Influencing bones (weights by distance and bone strength):</p><div class="checks">${S.P.bones.map(b => `<label><input type="checkbox" data-mb="${b.id}" ${meshB.includes(b.id) ? 'checked' : ''}> ${esc(b.name || b.id)}</label>`).join('')}</div>` : '') +
+        field('Weight falloff', num('mFall', (l.mesh && l.mesh.falloff) || 2.5, 0.1)) +
+        `<p class="note">Lower = softer joints (fixes folds at elbows and knees), higher = stiffer segments. Influencing bones (weights by distance and bone strength):</p><div class="checks">${S.P.bones.map(b => `<label><input type="checkbox" data-mb="${b.id}" ${meshB.includes(b.id) ? 'checked' : ''}> ${esc(b.name || b.id)}</label>`).join('')}</div>` : '') +
       `</div><div class="sub"><h4>Placement (frame 0)</h4>` +
       field('Position', `<div class="pair">${num('x', l.x, 1)}${num('y', l.y, 1)}</div>`) +
       field('Size', `<div class="pair">${num('w', l.w, 1)}${num('h', l.h, 1)}</div>`) +
       field('Scale %', num('scale', 100, 1)) +
+      field('Flip', `<div class="checks">${chk('flipX', l.flipX, 'horizontal')}${chk('flipY', l.flipY, 'vertical')}</div>`) +
       field('Opacity', num('opacity', l.opacity == null ? 1 : l.opacity, 0.05)) +
+      field('Z offset', num('zKey', pose.layers[l.id] ? pose.layers[l.id].z || 0 : 0, 1)) +
+      `<p class="note">Z offset is keyed (stepped) on frame 1+: +3 moves this layer 3 places toward the front for that part of the shot, e.g. an arm crossing in front of the body.</p>` +
       `<p class="note">Moving art on frame 0 does not move bones, and moving bones on frame 0 does not move bound art (Moho style).</p></div>` +
       `<div class="sub"><div class="btnrow"><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete layer</button></div></div>`;
     bind(box, {
       name: v => l.name = v,
       bone: v => { l.bone = v || null; if (l.bind === 'mesh' && v && !(l.bones || []).length) l.bones = [v]; },
       bind: v => { l.bind = v; if (v === 'mesh' && !(l.bones && l.bones.length) && l.bone) { const kids = S.P.bones.filter(b => b.parent === l.bone).map(b => b.id); l.bones = [l.bone, ...kids]; } l.mesh = l.mesh || { cols: 6, rows: 6 }; },
+      mFall: v => l.mesh = Object.assign({}, l.mesh, { falloff: Math.max(1, Math.min(8, v)) }),
       mCols: v => l.mesh = Object.assign({}, l.mesh, { cols: Math.max(1, Math.min(64, v | 0)) }), mRows: v => l.mesh = Object.assign({}, l.mesh, { rows: Math.max(1, Math.min(64, v | 0)) }),
       x: v => l.x = v, y: v => l.y = v, w: v => l.w = Math.max(1, v), h: v => l.h = Math.max(1, v),
       scale: v => { const s = Math.max(1, v) / 100, cx = l.x + l.w / 2, cy = l.y + l.h / 2; l.w = round(l.w * s); l.h = round(l.h * s); l.x = round(cx - l.w / 2); l.y = round(cy - l.h / 2); },
       opacity: v => l.opacity = Math.max(0, Math.min(1, v)),
+      flipX: v => l.flipX = v, flipY: v => l.flipY = v,
+      zKey: v => { if (isSetup()) { toast('Z offset is keyed on frame 1+. On frame 0 use the layer order arrows.'); return; } RK.setKey(RK.trackOf(modeStore(), 'layers', l.id, 'z', true), modeFrame(), Math.round(v), 'step'); },
       '@addDrawing': () => { const f = $('#fileDrawing'); f.dataset.layer = l.id; f.value = ''; f.click(); },
       '@dup': () => { checkpoint(); const c = JSON.parse(JSON.stringify(l)); c.id = uid('layer', id => !!layerById(id)); c.name += ' copy'; S.P.layers.splice(S.P.layers.indexOf(l) + 1, 0, c); S.sel = { type: 'layer', id: c.id }; changed(true); },
       '@del': () => { checkpoint(); S.P.layers = S.P.layers.filter(x => x !== l); delete S.P.anim.layers[l.id]; changed(true); }
@@ -937,7 +944,7 @@ document.getElementById('c').addEventListener('click', function () { player.play
     }
     lines.push('', '## Channels',
       'Bones: a (degrees ADDED to rest angle), x / y (px added to rest position, in parent space), sx / sy (scale multipliers, 1 = rest; sx stretches along the bone).',
-      'Layers: switch (drawing index, always stepped), opacity (0..1 multiplier).',
+      'Layers: switch (drawing index, always stepped), opacity (0..1 multiplier), z (draw-order offset, stepped: +2 moves the layer two places toward the front).',
       '', '## Key format', 'Each key is [frame, value, ease]. Ease shapes the segment AFTER the key.',
       `Eases: ${RK.EASE_NAMES.join(', ')}, or a cubic bezier array [x1,y1,x2,y2].`,
       'To loop cleanly, put a key at frame (frames + 1) equal to the frame 1 key.',

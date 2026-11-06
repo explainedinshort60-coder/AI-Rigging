@@ -72,6 +72,8 @@ Bones may be listed in any order; the engine sorts parents before children.
 | `active` | Drawing shown at rest and when nothing keys `switch`. |
 | `bind: "rigid"` | The layer follows `bone` as a solid piece (Moho layer binding). |
 | `bind: "mesh"` | The image becomes a `cols x rows` grid. Each vertex is skinned to the bones in `bones` (weights by distance to each bone at rest and bone strength). |
+| `flipX`, `flipY` | Mirror the drawing (reuse one arm, leg or shoe drawing for both sides). |
+| `mesh.falloff` | Weight falloff for mesh layers. Default 2.5. Lower = softer joints, higher = stiffer segments. |
 | `x, y, w, h` | Placement of the image in **world space at rest** (frame 0). |
 
 Array order is draw order: first is at the back.
@@ -89,6 +91,7 @@ Eases: `linear`, `smooth`, `ease-in`, `ease-out`, `fast-out`, `overshoot`, `anti
 | | `sx`, `sy` | Scale multipliers (1 = rest). `sx` stretches along the bone. Children inherit. |
 | `layers.<id>` | `switch` | Drawing index. Always stepped. |
 | | `opacity` | Multiplier, 0 to 1. |
+| | `z` | Draw-order offset, stepped. `+2` moves the layer two places toward the front for that stretch of the shot. |
 
 ```json
 "anim": {

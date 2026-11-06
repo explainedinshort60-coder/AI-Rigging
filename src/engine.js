@@ -130,7 +130,7 @@ function RigKitEngine(global) {
   RK.setKey = setKey;
 
   RK.BONE_CHANNELS = ['a', 'x', 'y', 'sx', 'sy'];
-  RK.LAYER_CHANNELS = ['switch', 'opacity'];
+  RK.LAYER_CHANNELS = ['switch', 'opacity', 'z'];
   const MULT = { sx: 1, sy: 1, opacity: 1 };
   RK.isMult = ch => !!MULT[ch];
   RK.channelDefault = ch => (MULT[ch] ? 1 : 0);
@@ -215,6 +215,7 @@ function RigKitEngine(global) {
       const chans = ls[id];
       if (chans.switch && chans.switch.length) st.switch = Math.round(sampleTrack(chans.switch, f, true));
       if (chans.opacity && chans.opacity.length) st.opacity *= sampleTrack(chans.opacity, f);
+      if (chans.z && chans.z.length) st.z = sampleTrack(chans.z, f, true);
     }
   }
 
@@ -227,7 +228,7 @@ function RigKitEngine(global) {
     opts = opts || {};
     const locals = RK.restLocals(project);
     const layerState = {};
-    for (const l of project.layers) layerState[l.id] = { switch: l.active || 0, opacity: l.opacity == null ? 1 : l.opacity };
+    for (const l of project.layers) layerState[l.id] = { switch: l.active || 0, opacity: l.opacity == null ? 1 : l.opacity, z: 0 };
 
     const animFrame = opts.action ? 0 : frame;
     if (animFrame >= 1) applyStore(project, project.anim, animFrame, locals, layerState);
@@ -327,11 +328,13 @@ function RigKitEngine(global) {
     const rows = Math.max(1, (layer.mesh && layer.mesh.rows) || 4);
     const ids = RK.layerBones(layer).filter(id => rest[id]);
     const bonesById = {}; project.bones.forEach(b => bonesById[b.id] = b);
-    const sig = JSON.stringify([layer.x, layer.y, layer.w, layer.h, cols, rows, ids,
+    const sig = JSON.stringify([layer.x, layer.y, layer.w, layer.h, cols, rows, ids, !!layer.flipX, !!layer.flipY, layer.mesh && layer.mesh.falloff,
       ids.map(id => [rest[id], bonesById[id] && bonesById[id].length, bonesById[id] && bonesById[id].strength])]);
     const hit = meshCache.get(layer);
     if (hit && hit.sig === sig) return hit.data;
     const verts = [], uvs = [], weights = [], tris = [];
+    // falloff: lower = softer blend across joints (fewer folds), higher = stiffer, more rigid segments
+    const falloff = (layer.mesh && layer.mesh.falloff) || 2.5;
     const segs = ids.map(id => {
       const b = bonesById[id];
       const a = M.apply(rest[id], 0, 0), t = M.apply(rest[id], b.length || 0, 0);
@@ -340,8 +343,8 @@ function RigKitEngine(global) {
     for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
       const u = i / cols, v = j / rows;
       const x = layer.x + layer.w * u, y = layer.y + layer.h * v;
-      verts.push(x, y); uvs.push(u, v);
-      let ws = segs.map(sg => 1 / (1e-6 + Math.pow(distToSeg(x, y, sg.a[0], sg.a[1], sg.t[0], sg.t[1]) / sg.s, 4)));
+      verts.push(x, y); uvs.push(layer.flipX ? 1 - u : u, layer.flipY ? 1 - v : v);
+      let ws = segs.map(sg => 1 / (1e-6 + Math.pow(distToSeg(x, y, sg.a[0], sg.a[1], sg.t[0], sg.t[1]) / sg.s, falloff)));
       const sum = ws.reduce((p, c) => p + c, 0) || 1;
       weights.push(ws.map(w => w / sum));
     }
@@ -386,19 +389,23 @@ function RigKitEngine(global) {
     return layer.drawings[idx];
   };
 
-  function drawTri(ctx, img, iw, ih, s, d) {
+  function drawTri(ctx, img, iw, ih, s, d, e) {
     // s, d: [x0,y0,x1,y1,x2,y2] source (image px) and destination (current space)
     const Ms = [s[2] - s[0], s[3] - s[1], s[4] - s[0], s[5] - s[1], s[0], s[1]];
     const Md = [d[2] - d[0], d[3] - d[1], d[4] - d[0], d[5] - d[1], d[0], d[1]];
     const A = M.mul(Md, M.inv(Ms));
-    // expand destination triangle slightly to hide seams
-    const cx = (d[0] + d[2] + d[4]) / 3, cy = (d[1] + d[3] + d[5]) / 3, e = 0.8;
+    // Grow the clip triangle so every EDGE moves outward by e (scale about the incenter).
+    // This hides anti-aliasing seams between neighbouring triangles, even thin ones.
+    const la = Math.hypot(d[2] - d[4], d[3] - d[5]), lb = Math.hypot(d[0] - d[4], d[1] - d[5]), lc = Math.hypot(d[0] - d[2], d[1] - d[3]);
+    const per = la + lb + lc || 1;
+    const ix = (la * d[0] + lb * d[2] + lc * d[4]) / per, iy = (la * d[1] + lb * d[3] + lc * d[5]) / per;
+    const area = Math.abs((d[2] - d[0]) * (d[5] - d[1]) - (d[4] - d[0]) * (d[3] - d[1])) / 2;
+    const r = (2 * area) / per;
+    const k = r > 1e-6 ? Math.min(4, (r + e) / r) : 1;
     ctx.save();
     ctx.beginPath();
     for (let i = 0; i < 3; i++) {
-      const x = d[i * 2], y = d[i * 2 + 1];
-      const dx = x - cx, dy = y - cy, l = Math.hypot(dx, dy) || 1;
-      const px = x + dx / l * e, py = y + dy / l * e;
+      const px = ix + (d[i * 2] - ix) * k, py = iy + (d[i * 2 + 1] - iy) * k;
       if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
     }
     ctx.closePath(); ctx.clip();
@@ -424,7 +431,9 @@ function RigKitEngine(global) {
     ctx.save();
     ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
     if (opts.background) { ctx.fillStyle = project.background || '#fff'; ctx.fillRect(0, 0, project.width, project.height); }
-    for (const layer of project.layers) {
+    // draw order: array index plus the keyed z offset (stepped), so parts can swap in front / behind
+    const order = project.layers.map((l, i) => [i + ((pose.layers[l.id] && pose.layers[l.id].z) || 0) + i * 1e-6, l]).sort((a, b) => a[0] - b[0]).map(e => e[1]);
+    for (const layer of order) {
       if (layer.hidden) continue;
       const dr = RK.layerDrawing(layer, pose); if (!dr) continue;
       const img = images[dr.asset];
@@ -436,16 +445,21 @@ function RigKitEngine(global) {
       if (layer.bind === 'mesh' && RK.layerBones(layer).length) {
         const { md, pts } = RK.deformMesh(project, layer, pose);
         ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
+        const grow = 0.9 / (Math.sqrt(Math.abs(view[0] * view[3] - view[1] * view[2])) || 1);
         for (let t = 0; t < md.tris.length; t += 3) {
           const i0 = md.tris[t], i1 = md.tris[t + 1], i2 = md.tris[t + 2];
           drawTri(ctx, img, iw, ih,
             [md.uvs[i0 * 2] * iw, md.uvs[i0 * 2 + 1] * ih, md.uvs[i1 * 2] * iw, md.uvs[i1 * 2 + 1] * ih, md.uvs[i2 * 2] * iw, md.uvs[i2 * 2 + 1] * ih],
-            [pts[i0 * 2], pts[i0 * 2 + 1], pts[i1 * 2], pts[i1 * 2 + 1], pts[i2 * 2], pts[i2 * 2 + 1]]);
+            [pts[i0 * 2], pts[i0 * 2 + 1], pts[i1 * 2], pts[i1 * 2 + 1], pts[i2 * 2], pts[i2 * 2 + 1]], grow);
         }
       } else {
         const m = M.mul(view, RK.boneDelta(pose, layer.bone));
         ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-        ctx.drawImage(img, layer.x, layer.y, layer.w, layer.h);
+        if (layer.flipX || layer.flipY) {
+          ctx.translate(layer.x + (layer.flipX ? layer.w : 0), layer.y + (layer.flipY ? layer.h : 0));
+          ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+          ctx.drawImage(img, 0, 0, layer.w, layer.h);
+        } else ctx.drawImage(img, layer.x, layer.y, layer.w, layer.h);
       }
     }
     ctx.restore();

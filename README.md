@@ -5,6 +5,12 @@ Bones, IK, mesh-bending images, switch layers, smart bones, bone dynamics and a 
 
 ![AI Rigging editor](docs/screenshot.png)
 
+### Real-asset test
+
+A character rigged from Kenney's CC0 *Modular Characters* parts and animated in the tool. Full dailies notes and the roadmap that came out of them: [docs/REVIEW-01-kenney-test.md](docs/REVIEW-01-kenney-test.md).
+
+![Kenney guy waving](docs/kenney-guy-wave.gif)
+
 ## Why
 
 Moho, Harmony and Spine are great, but their rigs stay inside their apps (or need a paid runtime license). AI Rigging is a small open tool for the web:
@@ -27,8 +33,10 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 | Bones and FK | Yes | Hierarchy, length, rest position and angle, re-parenting that keeps the world pose. |
 | Manipulate bones (IK) | Yes | CCD IK drag with adjustable chain length, respects angle constraints. Writes normal FK keys. |
 | Layer binding | Yes | "Rigid" mode: an image follows one bone. |
-| Smart Warp / region binding | Yes | "Mesh" mode: an image is a grid mesh skinned to several bones by distance and bone strength, so arms, tails and antennas bend smoothly. |
+| Smart Warp / region binding | Yes | "Mesh" mode: an image is a grid mesh skinned to several bones by distance and bone strength, so arms, tails and antennas bend smoothly. Weight falloff per layer fixes elbow folds. |
 | Switch layers | Yes | Any layer with more than one drawing. Mouths, eyes, hands, head turns. Stepped keys. |
+| Layer flip | Yes | Mirror one limb drawing for both sides. |
+| Draw-order keys | Yes | Keyable `z` offset so an arm can swap in front of or behind the body mid-shot. |
 | Smart bones | Yes | Mark a bone as a dial, press **Edit action**, set the dial value and pose. Rotating the dial replays corrective poses and drawing swaps. |
 | Bone constraints | Yes | Min and max local angle. |
 | Bone dynamics | Yes | Spring follow-through for antennas, tails, ears and hair, simulated on playback. |
@@ -83,14 +91,18 @@ css/editor.css
 src/engine.js         runtime: math, FK, smart bones, dynamics, mesh skinning, renderer, Player
 src/editor.js         editor UI
 src/demo.js           the Pip demo rig (SVG art, no binary assets)
-examples/             sample project JSON
+examples/             Pip demo JSON, Kenney guy rig + shot, builder script
 docs/FORMAT.md        file format reference
 ```
 
 ## Roadmap ideas
 
+Ranked in [docs/REVIEW-01-kenney-test.md](docs/REVIEW-01-kenney-test.md). Top of the list:
+
+- Foot lock: IK targets and pin bones with a two-bone analytic solver at runtime
+- Corrective mesh shapes driven by smart bones (point offsets)
+- Head view sets (front, 3/4, profile) with a one-click helper
 - Vector (SVG path) point binding, like Moho vector layers
-- Two-bone analytic IK with pole direction, IK targets and pin bones
 - Graph editor for curves
 - Multi-directional smart bones (2D dials)
 - Hand-painted mesh weights and custom mesh shapes
@@ -100,4 +112,5 @@ docs/FORMAT.md        file format reference
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Code: MIT. See [LICENSE](LICENSE).
+Example art in `examples/kenney-guy.rig.json` and `docs/kenney-guy-wave.*`: Kenney Modular Characters, www.kenney.nl, CC0 1.0.
