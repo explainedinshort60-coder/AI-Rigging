@@ -1,0 +1,135 @@
+# AI Rigging project format (`.rig.json`, version 1)
+
+One JSON object. Everything is plain data so it can be written by hand, by scripts, or by an AI assistant.
+
+## Conventions
+
+- Units are pixels and **degrees**.
+- Angle `0` points right (+x). Positive angles turn **clockwise on screen**, because canvas y points down. `-90` points up.
+- **Frame 0 is the rest (setup) pose.** Animation plays frames `1..frames`, then loops back to 1.
+- To loop cleanly, add a key at frame `frames + 1` equal to the frame 1 key.
+
+## Top level
+
+```json
+{
+  "format": "ai-rigging", "version": 1,
+  "name": "Pip demo",
+  "width": 800, "height": 600,
+  "fps": 24, "frames": 48,
+  "background": "#fff7ea",
+  "bones":   [ ... ],
+  "layers":  [ ... ],
+  "assets":  { "assetId": "data:image/png;base64,..." },
+  "anim":    { "bones": { ... }, "layers": { ... } },
+  "actions": { "smartBoneId": { "bones": { ... }, "layers": { ... } } }
+}
+```
+
+## Bones
+
+```json
+{
+  "id": "armR_lo", "name": "Arm R lower", "parent": "armR_up",
+  "x": 55, "y": 0, "angle": 0, "length": 55,
+  "strength": 0,
+  "constraint": { "enabled": true, "min": -150, "max": 10 },
+  "dynamics":   { "enabled": true, "stiffness": 0.18, "damping": 0.18, "gravity": 0, "limit": 80 },
+  "smart":      { "min": 0, "max": 90 }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `x`, `y`, `angle` | Rest transform in the **parent's** space (world space for root bones). |
+| `length` | Bone length. The tip is at local `(length, 0)`. |
+| `strength` | Mesh influence radius. `0` means automatic (60% of length). |
+| `constraint` | Clamp on the absolute local angle. Also limits IK. |
+| `dynamics` | Spring follow-through. Simulated, so do not key these bones by hand. |
+| `smart` | Marks the bone as a dial. Its animated angle offset (degrees) plays its action. |
+
+Bones may be listed in any order; the engine sorts parents before children.
+
+## Layers
+
+```json
+{
+  "id": "mouth", "name": "Mouth (switch)",
+  "drawings": [ { "name": "neutral", "asset": "mouthNeutral" }, { "name": "smile", "asset": "mouthSmile" } ],
+  "active": 0,
+  "bone": "head",
+  "bind": "rigid",
+  "bones": [],
+  "mesh": { "cols": 6, "rows": 6 },
+  "x": 370, "y": 304, "w": 60, "h": 34,
+  "opacity": 1, "hidden": false
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `drawings` | One drawing = image layer. Several = switch layer. |
+| `active` | Drawing shown at rest and when nothing keys `switch`. |
+| `bind: "rigid"` | The layer follows `bone` as a solid piece (Moho layer binding). |
+| `bind: "mesh"` | The image becomes a `cols x rows` grid. Each vertex is skinned to the bones in `bones` (weights by distance to each bone at rest and bone strength). |
+| `x, y, w, h` | Placement of the image in **world space at rest** (frame 0). |
+
+Array order is draw order: first is at the back.
+
+## Keys and channels
+
+A track is an array of keys: `[frame, value, ease]`. The ease shapes the segment **after** the key. Before the first key the first value holds; after the last key the last value holds.
+
+Eases: `linear`, `smooth`, `ease-in`, `ease-out`, `fast-out`, `overshoot`, `anticipate`, `step`, or a cubic bezier `[x1, y1, x2, y2]` (same as CSS `cubic-bezier`).
+
+| Store | Channel | Meaning |
+|---|---|---|
+| `bones.<id>` | `a` | Degrees **added** to the rest angle. |
+| | `x`, `y` | Pixels added to the rest position (parent space). |
+| | `sx`, `sy` | Scale multipliers (1 = rest). `sx` stretches along the bone. Children inherit. |
+| `layers.<id>` | `switch` | Drawing index. Always stepped. |
+| | `opacity` | Multiplier, 0 to 1. |
+
+```json
+"anim": {
+  "bones":  { "armR_up": { "a": [[1, -10, "fast-out"], [9, -62, "smooth"], [41, -62, "smooth"], [49, -10]] } },
+  "layers": { "eyes":    { "switch": [[1, 0, "step"], [20, 1, "step"], [22, 0, "step"]] } }
+}
+```
+
+## Smart bone actions
+
+`actions.<smartBoneId>` has the same shape as `anim`, but the "frame" of each key is the **dial value in degrees**. At evaluation time:
+
+1. The dial is the smart bone's animated angle offset (its `a` track).
+2. Each action track is sampled at that dial value and added on top of the animation (multiplied for `sx`, `sy`, `opacity`).
+3. Action `switch` tracks override the timeline while the dial is away from 0.
+
+```json
+"actions": {
+  "smile": {
+    "bones":  { "head":  { "a": [[0, 0, "smooth"], [90, -8, "smooth"]] } },
+    "layers": { "mouth": { "switch": [[0, 0, "step"], [25, 1, "step"], [65, 2, "step"]] } }
+  }
+}
+```
+
+Keying `anim.bones.smile.a` from 0 to 45 then makes Pip smile; 80 makes him laugh.
+
+## Evaluation order
+
+1. Rest locals from each bone.
+2. `anim` tracks at the frame (frame 1+ only).
+3. Smart bone actions at each dial value.
+4. Angle constraints.
+5. Forward kinematics.
+6. Bone dynamics (playback and export).
+7. Layers drawn back to front: rigid layers by `boneWorld * inverse(boneRest)`, mesh layers by linear blend skinning.
+
+## Partial JSON for "Paste anim JSON"
+
+The editor accepts a full project, or just:
+
+```json
+{ "anim": { ... }, "actions": { ... }, "frames": 72, "fps": 24 }
+```

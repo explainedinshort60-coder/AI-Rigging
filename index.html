@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Rigging · cutout rigging for HTML</title>
+<link rel="stylesheet" href="css/editor.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand"><span class="logo">◆</span> AI Rigging <span class="ver" id="ver"></span></div>
+    <div class="group">
+      <button data-cmd="new" title="New project">New</button>
+      <button data-cmd="open" title="Open project JSON">Open</button>
+      <button data-cmd="save" title="Save project JSON (Ctrl+S)">Save</button>
+      <button data-cmd="demo" title="Load the Pip demo rig">Demo</button>
+    </div>
+    <div class="group">
+      <button data-cmd="undo" title="Undo (Ctrl+Z)">↶</button>
+      <button data-cmd="redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+    </div>
+    <div class="group">
+      <button data-cmd="exportHTML" title="Standalone HTML player with art embedded">Export HTML</button>
+      <button data-cmd="exportWebM" title="Record the animation to a WebM video">Export video</button>
+      <button data-cmd="exportPNG" title="Current frame as PNG">PNG</button>
+    </div>
+    <div class="group">
+      <button data-cmd="aiBrief" title="Copy a text brief of this rig to paste into an AI assistant">Copy rig brief</button>
+      <button data-cmd="aiPaste" title="Paste animation JSON written by you or an AI">Paste anim JSON</button>
+    </div>
+    <div class="spacer"></div>
+    <button data-cmd="help" title="Shortcuts and workflow">?</button>
+  </header>
+
+  <aside id="left">
+    <section>
+      <h3>Tools</h3>
+      <div id="tools" class="tools">
+        <button data-tool="select" title="Select / Rotate bone (V). Drag a bone to rotate it, drag art on frame 0 to move it">⤾ <span>Select · Rotate</span><kbd>V</kbd></button>
+        <button data-tool="translate" title="Translate bone (T)">✥ <span>Translate</span><kbd>T</kbd></button>
+        <button data-tool="ik" title="Manipulate bones with IK (I). Drag a bone tip, its parents follow">⟟ <span>IK drag</span><kbd>I</kbd></button>
+        <button data-tool="bone" title="Add bone (B). Frame 0 only. New bone is a child of the selected bone">╱ <span>Add bone</span><kbd>B</kbd></button>
+        <button data-tool="hand" title="Pan (H, or middle mouse, or Alt+drag)">✋ <span>Pan</span><kbd>H</kbd></button>
+      </div>
+      <label class="row small">IK chain <input id="ikChain" type="number" min="1" max="12" value="2"></label>
+    </section>
+    <section class="grow">
+      <h3>Layers <span class="hint">top = front</span></h3>
+      <div class="btnrow">
+        <button data-cmd="addImages" title="Add one layer per image (PNG, SVG, JPG, WebP)">+ Images</button>
+        <button data-cmd="addSwitch" title="Add one switch layer from several images (mouths, hands, eyes)">+ Switch</button>
+      </div>
+      <ul id="layerList" class="list"></ul>
+    </section>
+    <section class="grow">
+      <h3>Bones</h3>
+      <ul id="boneList" class="list"></ul>
+    </section>
+  </aside>
+
+  <main id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div id="modeBadge"></div>
+    <div id="actionBar" hidden>
+      Editing smart bone action <b id="actionName"></b>. Set the dial, then pose bones or pick drawings: keys go into the action.
+      <button data-cmd="exitAction">Done</button>
+    </div>
+    <div id="dropHint">Drop images to add layers</div>
+    <div id="toast"></div>
+  </main>
+
+  <aside id="right">
+    <h3 id="inspTitle">Project</h3>
+    <div id="inspector"></div>
+  </aside>
+
+  <footer id="timeline">
+    <div class="tlbar">
+      <button data-cmd="first" title="First frame (Home)">⏮</button>
+      <button data-cmd="prev" title="Previous frame (,)">◀</button>
+      <button data-cmd="play" id="playBtn" title="Play / pause (Space)">▶</button>
+      <button data-cmd="next" title="Next frame (.)">▶|</button>
+      <button data-cmd="last" title="Last frame (End)">⏭</button>
+      <label>Frame <input id="frameInput" type="number" min="0" value="0"></label>
+      <label>of <input id="framesInput" type="number" min="1" value="48"></label>
+      <label>fps <input id="fpsInput" type="number" min="1" max="120" value="24"></label>
+      <label class="chk"><input id="loopChk" type="checkbox" checked> loop</label>
+      <label class="chk"><input id="onionChk" type="checkbox"> onion</label>
+      <label class="chk"><input id="dynChk" type="checkbox" checked> dynamics</label>
+      <label class="chk"><input id="bonesChk" type="checkbox" checked> bones</label>
+      <span class="sep"></span>
+      <button data-cmd="keyAll" title="Key all channels of the selection at this frame (K)">◆ Key</button>
+      <label>ease <select id="easeSel"></select></label>
+      <button data-cmd="deleteKey" title="Delete selected key (Delete)">✕ key</button>
+      <span id="keyInfo" class="muted"></span>
+    </div>
+    <canvas id="tl"></canvas>
+  </footer>
+</div>
+
+<div id="modal" hidden>
+  <div class="card">
+    <h3 id="modalTitle"></h3>
+    <p id="modalText" class="muted"></p>
+    <textarea id="modalArea" spellcheck="false"></textarea>
+    <div class="btnrow right" id="modalBtns"></div>
+  </div>
+</div>
+
+<input type="file" id="fileImages" accept="image/*" multiple hidden>
+<input type="file" id="fileSwitch" accept="image/*" multiple hidden>
+<input type="file" id="fileDrawing" accept="image/*" multiple hidden>
+<input type="file" id="fileProject" accept=".json,application/json" hidden>
+
+<script src="src/engine.js"></script>
+<script src="src/demo.js"></script>
+<script src="src/editor.js"></script>
+</body>
+</html>
