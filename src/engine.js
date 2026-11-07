@@ -19,7 +19,7 @@
 function RigKitEngine(global) {
   'use strict';
   const RK = {};
-  RK.VERSION = '0.2.0';
+  RK.VERSION = '0.3.0';
   const DEG = Math.PI / 180;
 
   /* ------------------------------------------------------------------ math */
@@ -328,11 +328,30 @@ function RigKitEngine(global) {
     }
     return null;
   };
+  /*
+   * Binding modes (named after Moho's):
+   *   rigid   layer binding: the whole drawing follows one bone
+   *   flexi   smooth mesh skinning: every listed bone pulls every vertex, less the farther away
+   *           (empty bone list = all bones, like Moho's default flexi-binding)
+   *   region  mesh skinning with a cutoff: a bone only affects vertices inside its strength
+   *           radius; vertices outside every region follow the closest bone
+   *   'mesh'  older name for flexi
+   * pointBind: { vertexIndex: boneId } on flexi/region layers pins single vertices rigidly to
+   * one bone (Moho point binding), overriding the automatic weights.
+   */
+  RK.isMeshBind = l => l && (l.bind === 'mesh' || l.bind === 'flexi' || l.bind === 'region');
   RK.layerBones = function (layer, project) {
-    if (layer.bind === 'mesh' && layer.bones && layer.bones.length) return layer.bones;
+    if (RK.isMeshBind(layer)) {
+      let ids = (layer.bones && layer.bones.length) ? layer.bones.slice()
+        : (layer.bind === 'flexi' || layer.bind === 'region') && project ? project.bones.map(b => b.id) : [];
+      if (!ids.length) { const b = project ? RK.effectiveBone(project, layer) : layer.bone; if (b) ids = [b]; }
+      for (const k in (layer.pointBind || {})) if (!ids.includes(layer.pointBind[k])) ids.push(layer.pointBind[k]);
+      return ids;
+    }
     const b = project ? RK.effectiveBone(project, layer) : layer.bone;
     return b ? [b] : [];
   };
+  RK.boneStrength = b => b.strength || Math.max(8, (b.length || 20) * 0.6);
   RK.isGroup = l => l.type === 'group';
   RK.BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'add'];
   const GCO = b => (!b || b === 'normal') ? 'source-over' : b === 'add' ? 'lighter' : b;
@@ -342,7 +361,7 @@ function RigKitEngine(global) {
     const rows = Math.max(1, (layer.mesh && layer.mesh.rows) || 4);
     const ids = RK.layerBones(layer, project).filter(id => rest[id]);
     const bonesById = {}; project.bones.forEach(b => bonesById[b.id] = b);
-    const sig = JSON.stringify([layer.x, layer.y, layer.w, layer.h, cols, rows, ids, !!layer.flipX, !!layer.flipY, layer.mesh && layer.mesh.falloff,
+    const sig = JSON.stringify([layer.x, layer.y, layer.w, layer.h, cols, rows, ids, !!layer.flipX, !!layer.flipY, layer.mesh && layer.mesh.falloff, layer.bind, layer.pointBind || null,
       ids.map(id => [rest[id], bonesById[id] && bonesById[id].length, bonesById[id] && bonesById[id].strength])]);
     const hit = meshCache.get(layer);
     if (hit && hit.sig === sig) return hit.data;
@@ -352,13 +371,27 @@ function RigKitEngine(global) {
     const segs = ids.map(id => {
       const b = bonesById[id];
       const a = M.apply(rest[id], 0, 0), t = M.apply(rest[id], b.length || 0, 0);
-      return { a, t, s: b.strength || Math.max(8, (b.length || 20) * 0.6) };
+      return { a, t, s: RK.boneStrength(b) };
     });
+    const region = layer.bind === 'region', pb = layer.pointBind || {};
     for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
       const u = i / cols, v = j / rows;
       const x = layer.x + layer.w * u, y = layer.y + layer.h * v;
       verts.push(x, y); uvs.push(layer.flipX ? 1 - u : u, layer.flipY ? 1 - v : v);
-      let ws = segs.map(sg => 1 / (1e-6 + Math.pow(distToSeg(x, y, sg.a[0], sg.a[1], sg.t[0], sg.t[1]) / sg.s, falloff)));
+      const vi = verts.length / 2 - 1;
+      const ds = segs.map(sg => distToSeg(x, y, sg.a[0], sg.a[1], sg.t[0], sg.t[1]));
+      let ws;
+      if (pb[vi] != null && ids.includes(pb[vi])) ws = ids.map(id => (id === pb[vi] ? 1 : 0));          // point binding
+      else if (region) {
+        // inside a bone's strength radius: smooth weight that reaches 0 at the edge
+        const rw = segs.map((sg, k) => ds[k] < sg.s ? Math.pow(1 - ds[k] / sg.s, 2) : 0);
+        const cover = Math.min(1, rw.reduce((p, c) => p + c, 0));
+        // outside (or thinly covered): follow the closest bone. A very sharp inverse-distance
+        // blend instead of a hard switch keeps the mesh continuous (no stair-steps at the joint)
+        const near = segs.map((sg, k) => 1 / (1e-6 + Math.pow(ds[k] / sg.s, 10)));
+        const ns = near.reduce((p, c) => p + c, 0) || 1;
+        ws = rw.map((w, k) => w + (1 - cover) * near[k] / ns);
+      } else ws = segs.map((sg, k) => 1 / (1e-6 + Math.pow(ds[k] / sg.s, falloff)));                    // flexi
       const sum = ws.reduce((p, c) => p + c, 0) || 1;
       weights.push(ws.map(w => w / sum));
     }
@@ -474,7 +507,7 @@ function RigKitEngine(global) {
     const walk = it => {
       if (it.hidden) return;
       if (RK.isGroup(it)) { RK.childrenOf(project, it.id, pose).forEach(walk); return; }
-      if (it.bind === 'mesh' && !it.screenLock && RK.layerBones(it, project).length) {
+      if (RK.isMeshBind(it) && !it.screenLock && RK.layerBones(it, project).length) {
         const { pts } = RK.deformMesh(project, it, pose);
         for (let i = 0; i < pts.length; i += 2) add(view, pts[i], pts[i + 1]);
       } else {
@@ -497,7 +530,7 @@ function RigKitEngine(global) {
     if (alpha <= 0.001) return;
     ctx.save();
     ctx.globalAlpha = alpha; ctx.globalCompositeOperation = GCO(blend);
-    if (layer.bind === 'mesh' && !layer.screenLock && RK.layerBones(layer, project).length) {
+    if (RK.isMeshBind(layer) && !layer.screenLock && RK.layerBones(layer, project).length) {
       const { md, pts } = RK.deformMesh(project, layer, pose);
       ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
       const grow = 0.9 / (Math.sqrt(Math.abs(view[0] * view[3] - view[1] * view[2])) || 1);

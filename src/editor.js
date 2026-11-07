@@ -22,7 +22,7 @@
     undo: [], redo: [],
     drag: null, hover: null, pose: null,
     onion: false, dynamics: true, showBones: true, loop: true,
-    collapsed: new Set()
+    collapsed: new Set(), brush: 14, pbBone: null, mouse: null
   };
   $('#ver').textContent = 'v' + RK.VERSION;
 
@@ -179,7 +179,7 @@
         ctx.setTransform(V[0], V[1], V[2], V[3], V[4], V[5]);
         ctx.lineWidth = 1.5 / S.view.z; ctx.strokeStyle = '#ff9f43';
         if (l.screenLock) { ctx.setLineDash([2 / S.view.z, 4 / S.view.z]); ctx.strokeRect(l.x, l.y, l.w, l.h); ctx.setLineDash([]); continue; }
-        if (l.bind === 'mesh' && RK.layerBones(l, S.P).length) {
+        if (RK.isMeshBind(l) && RK.layerBones(l, S.P).length) {
           const { md, pts } = RK.deformMesh(S.P, l, pose);
           ctx.strokeStyle = '#ff9f4388'; ctx.beginPath();
           for (let t = 0; t < md.tris.length; t += 3) {
@@ -195,7 +195,9 @@
       }
     }
 
-    if (S.showBones || S.tool === 'bone') drawBones(pose, V);
+    if (S.tool === 'strength') drawStrength(pose, V);
+    if (S.tool === 'pointbind') drawPins(pose, V);
+    if (S.showBones || S.tool === 'bone' || S.tool === 'strength') drawBones(pose, V);
 
     if (S.drag && S.drag.kind === 'newbone') {
       ctx.setTransform(V[0], V[1], V[2], V[3], V[4], V[5]);
@@ -204,6 +206,52 @@
     }
     updateBadge();
     drawTimeline();
+  }
+
+  // Bone Strength tool overlay: each bone's region of influence as a capsule
+  function drawStrength(pose, V) {
+    ctx.setTransform(V[0], V[1], V[2], V[3], V[4], V[5]);
+    const sl = S.sel && S.sel.type === 'layer' ? layerById(S.sel.id) : null;
+    const only = sl && RK.isMeshBind(sl) ? new Set(RK.layerBones(sl, S.P)) : null;
+    for (const b of S.P.bones) {
+      if (only && !only.has(b.id)) continue;
+      const w = pose.world[b.id]; const a = M.apply(w, 0, 0), t = M.apply(w, b.length || 0, 0);
+      const r = RK.boneStrength(b), hot = (S.drag && S.drag.id === b.id) || S.hover === b.id;
+      ctx.lineCap = 'round'; ctx.lineWidth = r * 2;
+      ctx.strokeStyle = hot ? 'rgba(255,159,67,.35)' : 'rgba(124,108,255,.18)';
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(t[0] + 0.01, t[1]); ctx.stroke();
+      if (hot) { ctx.fillStyle = '#fff'; ctx.font = `${12 / S.view.z}px system-ui`; ctx.fillText('strength ' + Math.round(r), t[0] + r + 4 / S.view.z, t[1]); }
+    }
+    ctx.lineCap = 'butt';
+  }
+  // Point Bind tool overlay: mesh vertices, pinned ones coloured, brush circle
+  const boneHue = id => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+  function drawPins(pose, V) {
+    const l = S.sel && S.sel.type === 'layer' ? layerById(S.sel.id) : null;
+    ctx.setTransform(V[0], V[1], V[2], V[3], V[4], V[5]);
+    if (!l || !RK.isMeshBind(l)) return;
+    const { pts } = RK.deformMesh(S.P, l, pose); const pb = l.pointBind || {};
+    for (let i = 0; i < pts.length / 2; i++) {
+      const pin = pb[i];
+      ctx.beginPath(); ctx.arc(pts[i * 2], pts[i * 2 + 1], (pin ? 4 : 2.2) / S.view.z, 0, 7);
+      ctx.fillStyle = pin ? `hsl(${boneHue(pin)},85%,60%)` : 'rgba(255,255,255,.75)'; ctx.fill();
+      if (pin) { ctx.lineWidth = 1 / S.view.z; ctx.strokeStyle = '#000'; ctx.stroke(); }
+    }
+    if (S.mouse) { ctx.beginPath(); ctx.arc(S.mouse[0], S.mouse[1], S.brush / S.view.z, 0, 7); ctx.lineWidth = 1.5 / S.view.z; ctx.strokeStyle = '#ff9f43'; ctx.stroke(); }
+  }
+  function paintPins(p, release) {
+    const l = S.sel && S.sel.type === 'layer' ? layerById(S.sel.id) : null;
+    if (!l || !RK.isMeshBind(l)) return false;
+    const bone = S.pbBone || RK.effectiveBone(S.P, l) || (S.P.bones[0] || {}).id; if (!bone) return false;
+    const { pts } = RK.deformMesh(S.P, l, evalPose(null, false));
+    const r = S.brush / S.view.z; let hit = false;
+    l.pointBind = l.pointBind || {};
+    for (let i = 0; i < pts.length / 2; i++) {
+      if (Math.hypot(pts[i * 2] - p[0], pts[i * 2 + 1] - p[1]) > r) continue;
+      if (release) delete l.pointBind[i]; else l.pointBind[i] = bone; hit = true;
+    }
+    if (!Object.keys(l.pointBind).length) delete l.pointBind;
+    return hit;
   }
 
   function drawBones(pose, V) {
@@ -283,6 +331,22 @@
       if (!isSetup()) { toast('Bones are added on frame 0 (setup). Jumping there.'); setFrame(0); }
       S.drag = { kind: 'newbone', a: p, b: p }; return;
     }
+    if (S.tool === 'pointbind') {
+      const l = S.sel && S.sel.type === 'layer' ? layerById(S.sel.id) : null;
+      if (!l || !RK.isMeshBind(l)) { toast('Select a flexi or region bound layer first, then paint its vertices'); return; }
+      checkpoint(); S.drag = { kind: 'pins', release: e.shiftKey, moved: paintPins(p, e.shiftKey) }; changed(); return;
+    }
+    if (S.tool === 'strength') {
+      // grab the bone whose capsule is under the cursor (nearest centre line)
+      let best = null, bd = Infinity;
+      for (const b of S.P.bones) {
+        const w = pose.world[b.id]; const a = M.apply(w, 0, 0), t = M.apply(w, b.length || 0, 0);
+        const dd = RK.distToSeg(p[0], p[1], a[0], a[1], t[0], t[1]);
+        if (dd < RK.boneStrength(b) + 6 / S.view.z && dd < bd) { bd = dd; best = b; }
+      }
+      if (best) { select({ type: 'bone', id: best.id }); checkpoint(); S.drag = { kind: 'strength', id: best.id }; }
+      return;
+    }
     const bone = hitBone(p, pose);
     if (bone) {
       select({ type: 'bone', id: bone.id });
@@ -313,6 +377,14 @@
     if (!S.P) return;
     const p = toWorld(e);
     const d = S.drag;
+    if (S.tool === 'pointbind' || S.tool === 'strength') { S.mouse = p; if (!d) draw(); }
+    if (d && d.kind === 'pins') { if (paintPins(p, d.release)) d.moved = true; S.sim.reset(); draw(); return; }
+    if (d && d.kind === 'strength') {
+      const b = boneById(d.id); const w = (S.pose || evalPose(null, false)).world[b.id];
+      const a = M.apply(w, 0, 0), t = M.apply(w, b.length || 0, 0);
+      b.strength = Math.max(2, round(RK.distToSeg(p[0], p[1], a[0], a[1], t[0], t[1]), 1)); d.moved = true;
+      draw(); return;
+    }
     if (!d) {
       const b = hitBone(p, S.pose || evalPose(null, false));
       const id = b ? b.id : null; if (id !== S.hover) { S.hover = id; draw(); }
@@ -513,7 +585,7 @@
     const g = layerById(gid); const parent = groupOf(g);
     if (deleteKids) { const d = groupDescendants(gid); S.P.layers = S.P.layers.filter(l => !d.has(l.id)); }
     else {
-      for (const l of S.P.layers) if (l.group === gid) { l.group = parent; if (!l.bone && g.bone && l.bind !== 'mesh') l.bone = g.bone; }
+      for (const l of S.P.layers) if (l.group === gid) { l.group = parent; if (!l.bone && g.bone && !RK.isMeshBind(l)) l.bone = g.bone; }
       S.P.layers = S.P.layers.filter(l => l !== g);
     }
     delete S.P.anim.layers[gid]; changed(true);
@@ -580,7 +652,7 @@
         const li = document.createElement('li');
         if (S.sel && S.sel.type === 'layer' && S.sel.id === l.id) li.className = 'sel';
         li.style.paddingLeft = (6 + depth * 14) + 'px';
-        const bound = isG ? (l.bone ? 'bone' : '') : l.screenLock ? 'lock' : l.bind === 'mesh' ? 'mesh' : l.bone ? 'bone' : '';
+        const bound = isG ? (l.bone ? 'bone' : '') : l.screenLock ? 'lock' : RK.isMeshBind(l) ? (l.bind === 'region' ? 'region' : 'flexi') : l.bone ? 'bone' : '';
         const blend = l.blend && l.blend !== 'normal' ? l.blend.replace('color-', 'c-').slice(0, 7) : '';
         li.innerHTML = `<span class="ic eye">${l.hidden ? '◌' : '●'}</span>` +
           (isG ? `<span class="ic fold">${S.collapsed.has(l.id) ? '▸' : '▾'}</span>` : (l.clip ? '<span class="ic clipic" title="Clipped to the layer below">↳</span>' : '')) +
@@ -749,10 +821,16 @@
       `<p class="note">Typical part stack: colour (base) · texture multiply, clipped · shadow multiply, clipped · highlight screen, clipped · line on top. Lock to screen keeps a texture still while the part moves.</p></div>` +
       `<div class="sub"><h4>Binding</h4>` +
       field('Bone', `<select data-k="bone">${boneOpts.replace('(none)', inherited ? '(follow group: ' + esc((boneById(inherited) || {}).name || inherited) + ')' : '(none)')}</select>`) +
-      field('Mode', `<select data-k="bind"><option value="rigid" ${l.bind !== 'mesh' ? 'selected' : ''}>Rigid (layer binding)</option><option value="mesh" ${l.bind === 'mesh' ? 'selected' : ''}>Mesh (bends, smart warp)</option></select>`) +
-      (l.bind === 'mesh' ? field('Mesh cols / rows', `<div class="pair">${num('mCols', (l.mesh && l.mesh.cols) || 6, 1)}${num('mRows', (l.mesh && l.mesh.rows) || 6, 1)}</div>`) +
+      field('Mode', `<select data-k="bind">${[['rigid', 'Layer binding (rigid)'], ['flexi', 'Flexi-binding (smooth bend)'], ['region', 'Region binding (bone strength)']].map(([v, t]) => `<option value="${v}" ${(l.bind === 'mesh' ? 'flexi' : (l.bind || 'rigid')) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`) +
+      `<p class="note">${{ rigid: 'Whole drawing follows one bone. Best for parts that never bend: heads, hands, eyes, props.', flexi: 'Every ticked bone pulls every vertex, less the farther it is. Smooth bends; tick only nearby bones or far bones will tug the art (the classic flexi pitfall).', region: 'A bone only moves vertices inside its strength radius (Bone Strength tool, S). Vertices outside every region follow the closest bone. Cleaner, more controlled bends.' }[l.bind === 'mesh' ? 'flexi' : (l.bind || 'rigid')]}</p>` +
+      (RK.isMeshBind(l) ? field('Mesh cols / rows', `<div class="pair">${num('mCols', (l.mesh && l.mesh.cols) || 6, 1)}${num('mRows', (l.mesh && l.mesh.rows) || 6, 1)}</div>`) +
         field('Weight falloff', num('mFall', (l.mesh && l.mesh.falloff) || 2.5, 0.1)) +
-        `<p class="note">Lower = softer joints (fixes folds at elbows and knees), higher = stiffer segments. Influencing bones (weights by distance and bone strength):</p><div class="checks">${S.P.bones.map(b => `<label><input type="checkbox" data-mb="${b.id}" ${meshB.includes(b.id) ? 'checked' : ''}> ${esc(b.name || b.id)}</label>`).join('')}</div>` : '') +
+        `<p class="note">${l.bind === 'region' ? 'Falloff is not used in region mode; set each bone\'s strength radius instead.' : 'Lower = softer joints (fixes folds at elbows and knees), higher = stiffer segments.'} Influencing bones (none ticked = all bones):</p><div class="checks">${S.P.bones.map(b => `<label><input type="checkbox" data-mb="${b.id}" ${meshB.includes(b.id) ? 'checked' : ''}> ${esc(b.name || b.id)}</label>`).join('')}</div>` +
+        `<div class="sub"><h4>Point binding</h4>` +
+        field('Pin to bone', `<select data-k="pbBone">${S.P.bones.map(b => `<option value="${b.id}" ${b.id === (S.pbBone || RK.effectiveBone(S.P, l)) ? 'selected' : ''}>${esc(b.name || b.id)}</option>`).join('')}</select>`) +
+        field('Brush', num('pbBrush', S.brush, 1)) +
+        `<p class="note">${Object.keys(l.pointBind || {}).length} vertex(es) pinned. Press <b>P</b> and paint over the mesh to pin vertices rigidly to that bone (Moho point binding): keeps a hand or a cuff from bending. Shift+paint releases.</p>` +
+        `<div class="btnrow"><button data-act="pbTool">Paint pins (P)</button><button data-act="pbClear" class="danger">Clear pins</button></div></div>` : '') +
       `</div><div class="sub"><h4>Placement (frame 0)</h4>` +
       field('Position', `<div class="pair">${num('x', l.x, 1)}${num('y', l.y, 1)}</div>`) +
       field('Size', `<div class="pair">${num('w', l.w, 1)}${num('h', l.h, 1)}</div>`) +
@@ -767,14 +845,22 @@
       name: v => l.name = v,
       group: v => setLayerGroup(l, v || null),
       blend: v => l.blend = v, clip: v => l.clip = v, screenLock: v => l.screenLock = v,
-      bone: v => { l.bone = v || null; if (l.bind === 'mesh' && v && !(l.bones || []).length) l.bones = [v]; },
-      bind: v => { l.bind = v; if (v === 'mesh' && !(l.bones && l.bones.length) && l.bone) { const kids = S.P.bones.filter(b => b.parent === l.bone).map(b => b.id); l.bones = [l.bone, ...kids]; } l.mesh = l.mesh || { cols: 6, rows: 6 }; },
+      bone: v => { l.bone = v || null; if (RK.isMeshBind(l) && v && !(l.bones || []).length) l.bones = [v]; },
+      bind: v => {
+        l.bind = v;
+        const own = l.bone || RK.effectiveBone(S.P, l);
+        if (v !== 'rigid' && !(l.bones && l.bones.length) && own) { const kids = S.P.bones.filter(b => b.parent === own).map(b => b.id); l.bones = [own, ...kids]; }
+        l.mesh = l.mesh || { cols: 6, rows: 6 };
+      },
       mFall: v => l.mesh = Object.assign({}, l.mesh, { falloff: Math.max(1, Math.min(8, v)) }),
       mCols: v => l.mesh = Object.assign({}, l.mesh, { cols: Math.max(1, Math.min(64, v | 0)) }), mRows: v => l.mesh = Object.assign({}, l.mesh, { rows: Math.max(1, Math.min(64, v | 0)) }),
       x: v => l.x = v, y: v => l.y = v, w: v => l.w = Math.max(1, v), h: v => l.h = Math.max(1, v),
       scale: v => { const s = Math.max(1, v) / 100, cx = l.x + l.w / 2, cy = l.y + l.h / 2; l.w = round(l.w * s); l.h = round(l.h * s); l.x = round(cx - l.w / 2); l.y = round(cy - l.h / 2); },
       opacity: v => l.opacity = Math.max(0, Math.min(1, v)),
       flipX: v => l.flipX = v, flipY: v => l.flipY = v,
+      pbBone: v => { S.undo.pop(); S.pbBone = v; }, pbBrush: v => { S.undo.pop(); S.brush = Math.max(2, Math.min(200, v)); },
+      '@pbTool': () => setTool('pointbind'),
+      '@pbClear': () => { checkpoint(); delete l.pointBind; changed(true); },
       zKey: v => { if (isSetup()) { toast('Z offset is keyed on frame 1+. On frame 0 use the layer order arrows.'); return; } RK.setKey(RK.trackOf(modeStore(), 'layers', l.id, 'z', true), modeFrame(), Math.round(v), 'step'); },
       '@addDrawing': () => { const f = $('#fileDrawing'); f.dataset.layer = l.id; f.value = ''; f.click(); },
       '@dup': () => { checkpoint(); const c = JSON.parse(JSON.stringify(l)); c.id = uid('layer', id => !!layerById(id)); c.name += ' copy'; S.P.layers.splice(S.P.layers.indexOf(l) + 1, 0, c); S.sel = { type: 'layer', id: c.id }; changed(true); },
@@ -1069,7 +1155,7 @@ document.getElementById('c').addEventListener('click', function () { player.play
     for (const l of P.layers) {
       const extra = [l.group ? 'in=' + l.group : '', l.blend && l.blend !== 'normal' ? 'blend=' + l.blend : '', l.clip ? 'clipped' : '', l.screenLock ? 'screen-locked' : ''].filter(Boolean).join(' ');
       if (RK.isGroup(l)) { lines.push(`- ${l.id} "${l.name}" GROUP bone=${l.bone || '-'} ${extra}`); continue; }
-      lines.push(`- ${l.id} "${l.name}" bone=${l.bind === 'mesh' ? 'mesh[' + RK.layerBones(l, P).join(',') + ']' : (RK.effectiveBone(P, l) || '-')} drawings=[${l.drawings.map((d, i) => i + ':' + d.name).join(', ')}] ${extra}`);
+      lines.push(`- ${l.id} "${l.name}" bone=${RK.isMeshBind(l) ? (l.bind === 'region' ? 'region' : 'flexi') + '[' + RK.layerBones(l, P).join(',') + ']' : (RK.effectiveBone(P, l) || '-')} drawings=[${l.drawings.map((d, i) => i + ':' + d.name).join(', ')}] ${extra}`);
     }
     const acts = Object.keys(P.actions || {});
     if (acts.length) {
@@ -1147,6 +1233,8 @@ document.getElementById('c').addEventListener('click', function () { player.play
       <tr><td><b>V</b></td><td>Select / rotate bone (drag a bone). Drag art on frame 0 to place it.</td></tr>
       <tr><td><b>T</b></td><td>Translate bone</td></tr><tr><td><b>I</b></td><td>IK drag: pull a bone tip, parents follow (chain length in the left panel)</td></tr>
       <tr><td><b>B</b></td><td>Add bone (frame 0). Drag from joint to tip. Child of the selected bone.</td></tr>
+      <tr><td><b>S</b></td><td>Bone Strength: drag on a bone's capsule to set its region of influence (region and flexi binding).</td></tr>
+      <tr><td><b>P</b></td><td>Point Bind brush: select a flexi/region layer, pick the bone in the inspector, paint vertices to pin them to it. Shift+paint releases. <b>[</b> <b>]</b> brush size.</td></tr>
       <tr><td><b>H</b> / Alt+drag / middle mouse</td><td>Pan. Mouse wheel zooms. <b>F</b> fits the stage.</td></tr>
       <tr><td><b>Space</b></td><td>Play / pause</td></tr><tr><td><b>,</b> <b>.</b></td><td>Previous / next frame. <b>Home</b> / <b>End</b>.</td></tr>
       <tr><td><b>K</b></td><td>Key selection at this frame</td></tr><tr><td><b>Delete</b></td><td>Delete selected key (or bone / layer if no key selected)</td></tr>
@@ -1198,6 +1286,8 @@ document.getElementById('c').addEventListener('click', function () { player.play
     if (k === ' ') { e.preventDefault(); return togglePlay(); }
     if (k === 'v') setTool('select'); else if (k === 't') setTool('translate'); else if (k === 'i') setTool('ik');
     else if (k === 'b') setTool('bone'); else if (k === 'h') setTool('hand');
+    else if (k === 's') setTool('strength'); else if (k === 'p') setTool('pointbind');
+    else if (k === '[') { S.brush = Math.max(2, S.brush - 3); draw(); } else if (k === ']') { S.brush = Math.min(200, S.brush + 3); draw(); }
     else if (k === ',') CMD.prev(); else if (k === '.') CMD.next();
     else if (k === 'home') CMD.first(); else if (k === 'end') CMD.last();
     else if (k === 'k') keyAll(); else if (k === 'f') fitView();

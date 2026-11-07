@@ -43,7 +43,7 @@ One JSON object. Everything is plain data so it can be written by hand, by scrip
 |---|---|
 | `x`, `y`, `angle` | Rest transform in the **parent's** space (world space for root bones). |
 | `length` | Bone length. The tip is at local `(length, 0)`. |
-| `strength` | Mesh influence radius. `0` means automatic (60% of length). |
+| `strength` | Influence radius for flexi and region binding. `0` means automatic (60% of length). Set it with the Bone Strength tool. |
 | `constraint` | Clamp on the absolute local angle. Also limits IK. |
 | `dynamics` | Spring follow-through. Simulated, so do not key these bones by hand. |
 | `smart` | Marks the bone as a dial. Its animated angle offset (degrees) plays its action. |
@@ -71,7 +71,9 @@ Bones may be listed in any order; the engine sorts parents before children.
 | `drawings` | One drawing = image layer. Several = switch layer. |
 | `active` | Drawing shown at rest and when nothing keys `switch`. |
 | `bind: "rigid"` | The layer follows `bone` as a solid piece (Moho layer binding). |
-| `bind: "mesh"` | The image becomes a `cols x rows` grid. Each vertex is skinned to the bones in `bones` (weights by distance to each bone at rest and bone strength). |
+| `bind: "flexi"` | The image becomes a `cols x rows` grid mesh. Each vertex is skinned to the bones in `bones` by inverse distance (scaled by bone strength, shaped by `mesh.falloff`). Empty `bones` = all bones. `"mesh"` is an older name for this. |
+| `bind: "region"` | Grid mesh where a bone only affects vertices within its `strength` radius; vertices outside every region follow the closest bone. |
+| `pointBind` | `{ "vertexIndex": "boneId" }` on flexi or region layers: those vertices move rigidly with that bone (Moho point binding). Vertex index = `row * (cols + 1) + col`. |
 | `flipX`, `flipY` | Mirror the drawing (reuse one arm, leg or shoe drawing for both sides). |
 | `mesh.falloff` | Weight falloff for mesh layers. Default 2.5. Lower = softer joints, higher = stiffer segments. |
 | `x, y, w, h` | Placement of the image in **world space at rest** (frame 0). |

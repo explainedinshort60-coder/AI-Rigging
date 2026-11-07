@@ -25,15 +25,17 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 2. The **Pip** demo rig loads. Press **Space** to play.
 3. Drag a bone to rotate it. On frame 1+ every change auto-keys.
 
-## Features (v0.2)
+## Features (v0.3)
 
 | Moho idea | AI Rigging | Notes |
 |---|---|---|
 | Frame 0 setup mode | Yes | Frame 0 is the rest pose. Moving bones there changes the rig, not the animation, and does not drag bound art. |
 | Bones and FK | Yes | Hierarchy, length, rest position and angle, re-parenting that keeps the world pose. |
 | Manipulate bones (IK) | Yes | CCD IK drag with adjustable chain length, respects angle constraints. Writes normal FK keys. |
-| Layer binding | Yes | "Rigid" mode: an image follows one bone. |
-| Smart Warp / region binding | Yes | "Mesh" mode: an image is a grid mesh skinned to several bones by distance and bone strength, so arms, tails and antennas bend smoothly. Weight falloff per layer fixes elbow folds. |
+| Layer binding | Yes | The whole drawing follows one bone. Bind a group once for a whole part stack. |
+| Flexi-binding | Yes | The image becomes a mesh skinned to the ticked bones by distance (empty = all bones, Moho's default). Smooth bends for sleeves, tails, antennas. |
+| Region binding + Bone Strength tool | Yes | Bones only affect vertices inside their strength radius, set by dragging capsules with the **S** tool. Clean joints, no far-bone tugging. |
+| Point binding | Yes | **P** brush pins mesh vertices rigidly to one bone (cuffs, hands, shoe soles). |
 | Switch layers | Yes | Any layer with more than one drawing. Mouths, eyes, hands, head turns. Stepped keys. |
 | Group layers | Yes | Folders in the layer panel. Bind a group to a bone once; children follow it. Collapse, hide, reorder, nest. |
 | Clipping masks | Yes | A layer clips to the layer below it, so shadows, highlights and textures stay inside the colour shape. |
@@ -61,7 +63,7 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 
 ### Shortcuts
 
-`V` select/rotate, `T` translate, `I` IK, `B` add bone, `H` pan (or Alt/middle-drag), wheel zoom, `F` fit, `Space` play, `,` `.` step frames, `Home` `End`, `K` key selection, `Delete` delete key/bone/layer, `O` onion, `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo, `Ctrl+S` save.
+`V` select/rotate, `T` translate, `I` IK, `B` add bone, `S` bone strength, `P` point bind (`[` `]` brush size), `H` pan (or Alt/middle-drag), wheel zoom, `F` fit, `Space` play, `,` `.` step frames, `Home` `End`, `K` key selection, `Delete` delete key/bone/layer, `O` onion, `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo, `Ctrl+S` save.
 
 ## Animating with an AI assistant
 
@@ -84,6 +86,10 @@ The brief already asks for good cutout habits: breakdowns, child parts offset 1 
 ```
 
 The engine (`src/engine.js`) has no dependencies. `RigKit.evaluate(project, frame)` gives you the pose and `RigKit.render(ctx, project, pose, images)` draws it, if you want to drive it yourself (scroll-linked animation, game state, lip sync from audio).
+
+## Binding guide
+
+Which binding to use when, with a side-by-side test: [docs/BINDING.md](docs/BINDING.md).
 
 ## File format
 
