@@ -3,6 +3,8 @@
  * Shows every feature: rigid binding, mesh binding (bendy arms and antenna),
  * switch layers (eyes, mouth), a smart bone dial ("smile") that drives the
  * mouth switch and a head tilt, bone dynamics on the antenna, and squash.
+ * The head and body are part stacks (colour, screen-locked paper grain, multiply shadow,
+ * screen highlight, line) inside groups, so they show the layer system.
  * All art is generated SVG so the repo ships with no binary assets.
  */
 (function (global) {
@@ -17,10 +19,21 @@
   const INK = '#2b2340', SKIN = '#7fd1c7', SKIN2 = '#5fb3a9', CHEEK = '#ff9db0', ACC = '#ffb547';
 
   const ART = {
-    body: svgURL(150, 170, `<path d="M75 6 C128 6 144 60 144 105 C144 148 116 164 75 164 C34 164 6 148 6 105 C6 60 22 6 75 6Z" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>
-      <ellipse cx="75" cy="112" rx="40" ry="34" fill="#c9f1ea"/><circle cx="75" cy="104" r="9" fill="${ACC}" stroke="${INK}" stroke-width="4"/>`),
-    head: svgURL(164, 150, `<rect x="6" y="6" width="152" height="138" rx="62" fill="${SKIN}" stroke="${INK}" stroke-width="6"/>
+    // BODY part stack
+    bodyColor: svgURL(150, 170, `<path d="M75 6 C128 6 144 60 144 105 C144 148 116 164 75 164 C34 164 6 148 6 105 C6 60 22 6 75 6Z" fill="${SKIN}"/>
+      <ellipse cx="75" cy="112" rx="40" ry="34" fill="#c9f1ea"/>`),
+    bodyShadow: svgURL(150, 170, `<path d="M150 50 C140 140 100 170 30 170 L150 170Z" fill="#9db8d6"/>`),
+    bodyHighlight: svgURL(150, 170, `<ellipse cx="46" cy="42" rx="22" ry="12" transform="rotate(-30 46 42)" fill="#8a8a8a"/>`),
+    bodyLine: svgURL(150, 170, `<path d="M75 6 C128 6 144 60 144 105 C144 148 116 164 75 164 C34 164 6 148 6 105 C6 60 22 6 75 6Z" fill="none" stroke="${INK}" stroke-width="6"/>
+      <circle cx="75" cy="104" r="9" fill="${ACC}" stroke="${INK}" stroke-width="4"/>`),
+    headColor: svgURL(164, 150, `<rect x="6" y="6" width="152" height="138" rx="62" fill="${SKIN}"/>`),
+    headShadow: svgURL(164, 150, `<path d="M164 40 C150 120 90 150 20 150 L164 150Z" fill="#9db8d6"/><path d="M0 128 Q60 156 150 112 L164 150 L0 150Z" fill="#9db8d6"/>`),
+    headHighlight: svgURL(164, 150, `<ellipse cx="54" cy="36" rx="34" ry="16" transform="rotate(-18 54 36)" fill="#8a8a8a"/>`),
+    headLine: svgURL(164, 150, `<rect x="6" y="6" width="152" height="138" rx="62" fill="none" stroke="${INK}" stroke-width="6"/>
       <ellipse cx="34" cy="98" rx="13" ry="8" fill="${CHEEK}" opacity=".8"/><ellipse cx="130" cy="98" rx="13" ry="8" fill="${CHEEK}" opacity=".8"/>`),
+    grain: svgURL(800, 600, `<filter id="n" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" seed="7" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="0.45" intercept="0.62"/><feFuncG type="linear" slope="0.45" intercept="0.62"/><feFuncB type="linear" slope="0.45" intercept="0.62"/><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer></filter>
+      <rect width="800" height="600" filter="url(#n)"/>`),
     eyesOpen: svgURL(90, 40, `<ellipse cx="18" cy="20" rx="11" ry="15" fill="${INK}"/><ellipse cx="72" cy="20" rx="11" ry="15" fill="${INK}"/>
       <circle cx="22" cy="13" r="4" fill="#fff"/><circle cx="76" cy="13" r="4" fill="#fff"/>`),
     eyesClosed: svgURL(90, 40, `<path d="M6 22 Q18 30 30 22" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>
@@ -69,15 +82,28 @@
       p.bones.push(b);
     }
 
-    const L = (o) => Object.assign({ opacity: 1, active: 0, bind: 'rigid', hidden: false }, o);
+    const L = (o) => Object.assign({ opacity: 1, active: 0, bind: 'rigid', hidden: false, blend: 'normal', bone: null }, o);
+    const G = (o) => Object.assign({ type: 'group', drawings: [], opacity: 1, blend: 'normal', hidden: false, group: null }, o);
     p.layers = [
       L({ id: 'legL_art', name: 'Leg L', drawings: [{ name: 'leg', asset: 'leg' }], bone: 'legL', x: 358, y: 462, w: 44, h: 62 }),
       L({ id: 'legR_art', name: 'Leg R', drawings: [{ name: 'leg', asset: 'leg' }], bone: 'legR', x: 398, y: 462, w: 44, h: 62 }),
       L({ id: 'antenna_art', name: 'Antenna', drawings: [{ name: 'antenna', asset: 'antenna' }], bone: 'ant1', bind: 'mesh', bones: ['ant1', 'ant2'], mesh: { cols: 1, rows: 10 }, x: 390, y: 160, w: 20, h: 90 }),
-      L({ id: 'body_art', name: 'Body', drawings: [{ name: 'body', asset: 'body' }], bone: 'body', x: 325, y: 330, w: 150, h: 170 }),
-      L({ id: 'head_art', name: 'Head', drawings: [{ name: 'head', asset: 'head' }], bone: 'head', x: 318, y: 212, w: 164, h: 150 }),
-      L({ id: 'eyes', name: 'Eyes (switch)', drawings: [{ name: 'open', asset: 'eyesOpen' }, { name: 'closed', asset: 'eyesClosed' }], bone: 'head', x: 355, y: 258, w: 90, h: 40 }),
-      L({ id: 'mouth', name: 'Mouth (switch)', drawings: [{ name: 'neutral', asset: 'mouthNeutral' }, { name: 'smile', asset: 'mouthSmile' }, { name: 'laugh', asset: 'mouthLaugh' }], bone: 'head', x: 370, y: 304, w: 60, h: 34 }),
+      // Body: a part stack in a group. Children have no bone; they follow the group's bone.
+      G({ id: 'body_grp', name: 'Body', bone: 'body' }),
+      L({ id: 'body_color', name: 'Body colour', group: 'body_grp', drawings: [{ name: 'colour', asset: 'bodyColor' }], x: 325, y: 330, w: 150, h: 170 }),
+      L({ id: 'body_tex', name: 'Body texture', group: 'body_grp', drawings: [{ name: 'grain', asset: 'grain' }], clip: true, blend: 'multiply', screenLock: true, x: 0, y: 0, w: 800, h: 600 }),
+      L({ id: 'body_shadow', name: 'Body shadow', group: 'body_grp', drawings: [{ name: 'shadow', asset: 'bodyShadow' }], clip: true, blend: 'multiply', x: 325, y: 330, w: 150, h: 170 }),
+      L({ id: 'body_hl', name: 'Body highlight', group: 'body_grp', drawings: [{ name: 'highlight', asset: 'bodyHighlight' }], clip: true, blend: 'screen', opacity: 0.7, x: 325, y: 330, w: 150, h: 170 }),
+      L({ id: 'body_line', name: 'Body line', group: 'body_grp', drawings: [{ name: 'line', asset: 'bodyLine' }], x: 325, y: 330, w: 150, h: 170 }),
+      // Head: part stack plus face parts, all following the group's bone
+      G({ id: 'head_grp', name: 'Head', bone: 'head' }),
+      L({ id: 'head_color', name: 'Head colour', group: 'head_grp', drawings: [{ name: 'colour', asset: 'headColor' }], x: 318, y: 212, w: 164, h: 150 }),
+      L({ id: 'head_tex', name: 'Head texture', group: 'head_grp', drawings: [{ name: 'grain', asset: 'grain' }], clip: true, blend: 'multiply', screenLock: true, x: 0, y: 0, w: 800, h: 600 }),
+      L({ id: 'head_shadow', name: 'Head shadow', group: 'head_grp', drawings: [{ name: 'shadow', asset: 'headShadow' }], clip: true, blend: 'multiply', x: 318, y: 212, w: 164, h: 150 }),
+      L({ id: 'head_hl', name: 'Head highlight', group: 'head_grp', drawings: [{ name: 'highlight', asset: 'headHighlight' }], clip: true, blend: 'screen', opacity: 0.7, x: 318, y: 212, w: 164, h: 150 }),
+      L({ id: 'head_line', name: 'Head line', group: 'head_grp', drawings: [{ name: 'line', asset: 'headLine' }], x: 318, y: 212, w: 164, h: 150 }),
+      L({ id: 'eyes', name: 'Eyes (switch)', group: 'head_grp', drawings: [{ name: 'open', asset: 'eyesOpen' }, { name: 'closed', asset: 'eyesClosed' }], x: 355, y: 258, w: 90, h: 40 }),
+      L({ id: 'mouth', name: 'Mouth (switch)', group: 'head_grp', drawings: [{ name: 'neutral', asset: 'mouthNeutral' }, { name: 'smile', asset: 'mouthSmile' }, { name: 'laugh', asset: 'mouthLaugh' }], x: 370, y: 304, w: 60, h: 34 }),
       L({ id: 'armL_art', name: 'Arm L', drawings: [{ name: 'arm', asset: 'armL' }], bone: 'armL_up', bind: 'mesh', bones: ['armL_up', 'armL_lo'], mesh: { cols: 10, rows: 2 }, x: 228, y: 364, w: 128, h: 32 }),
       L({ id: 'armR_art', name: 'Arm R', drawings: [{ name: 'arm', asset: 'armR' }], bone: 'armR_up', bind: 'mesh', bones: ['armR_up', 'armR_lo'], mesh: { cols: 10, rows: 2 }, x: 444, y: 364, w: 128, h: 32 })
     ];

@@ -50,6 +50,8 @@
       <div class="btnrow">
         <button data-cmd="addImages" title="Add one layer per image (PNG, SVG, JPG, WebP)">+ Images</button>
         <button data-cmd="addSwitch" title="Add one switch layer from several images (mouths, hands, eyes)">+ Switch</button>
+        <button data-cmd="addGroup" title="New group. If a layer is selected it goes inside">+ Group</button>
+        <button data-cmd="addStack" title="Import a part stack: name files like arm_color, arm_shadow, arm_highlight, arm_texture, arm_line">+ Part stack</button>
       </div>
       <ul id="layerList" class="list"></ul>
     </section>
@@ -110,6 +112,7 @@
 
 <input type="file" id="fileImages" accept="image/*" multiple hidden>
 <input type="file" id="fileSwitch" accept="image/*" multiple hidden>
+<input type="file" id="fileStack" accept="image/*" multiple hidden>
 <input type="file" id="fileDrawing" accept="image/*" multiple hidden>
 <input type="file" id="fileProject" accept=".json,application/json" hidden>
 

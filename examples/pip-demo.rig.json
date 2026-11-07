@@ -133,6 +133,8 @@
    "active": 0,
    "bind": "rigid",
    "hidden": false,
+   "blend": "normal",
+   "bone": "legL",
    "id": "legL_art",
    "name": "Leg L",
    "drawings": [
@@ -141,7 +143,6 @@
      "asset": "leg"
     }
    ],
-   "bone": "legL",
    "x": 358,
    "y": 462,
    "w": 44,
@@ -152,6 +153,8 @@
    "active": 0,
    "bind": "rigid",
    "hidden": false,
+   "blend": "normal",
+   "bone": "legR",
    "id": "legR_art",
    "name": "Leg R",
    "drawings": [
@@ -160,7 +163,6 @@
      "asset": "leg"
     }
    ],
-   "bone": "legR",
    "x": 398,
    "y": 462,
    "w": 44,
@@ -171,6 +173,8 @@
    "active": 0,
    "bind": "mesh",
    "hidden": false,
+   "blend": "normal",
+   "bone": "ant1",
    "id": "antenna_art",
    "name": "Antenna",
    "drawings": [
@@ -179,7 +183,6 @@
      "asset": "antenna"
     }
    ],
-   "bone": "ant1",
    "bones": [
     "ant1",
     "ant2"
@@ -194,19 +197,32 @@
    "h": 90
   },
   {
+   "type": "group",
+   "drawings": [],
+   "opacity": 1,
+   "blend": "normal",
+   "hidden": false,
+   "group": null,
+   "id": "body_grp",
+   "name": "Body",
+   "bone": "body"
+  },
+  {
    "opacity": 1,
    "active": 0,
    "bind": "rigid",
    "hidden": false,
-   "id": "body_art",
-   "name": "Body",
+   "blend": "normal",
+   "bone": null,
+   "id": "body_color",
+   "name": "Body colour",
+   "group": "body_grp",
    "drawings": [
     {
-     "name": "body",
-     "asset": "body"
+     "name": "colour",
+     "asset": "bodyColor"
     }
    ],
-   "bone": "body",
    "x": 325,
    "y": 330,
    "w": 150,
@@ -217,15 +233,116 @@
    "active": 0,
    "bind": "rigid",
    "hidden": false,
-   "id": "head_art",
-   "name": "Head",
+   "blend": "multiply",
+   "bone": null,
+   "id": "body_tex",
+   "name": "Body texture",
+   "group": "body_grp",
    "drawings": [
     {
-     "name": "head",
-     "asset": "head"
+     "name": "grain",
+     "asset": "grain"
     }
    ],
-   "bone": "head",
+   "clip": true,
+   "screenLock": true,
+   "x": 0,
+   "y": 0,
+   "w": 800,
+   "h": 600
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "multiply",
+   "bone": null,
+   "id": "body_shadow",
+   "name": "Body shadow",
+   "group": "body_grp",
+   "drawings": [
+    {
+     "name": "shadow",
+     "asset": "bodyShadow"
+    }
+   ],
+   "clip": true,
+   "x": 325,
+   "y": 330,
+   "w": 150,
+   "h": 170
+  },
+  {
+   "opacity": 0.7,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "screen",
+   "bone": null,
+   "id": "body_hl",
+   "name": "Body highlight",
+   "group": "body_grp",
+   "drawings": [
+    {
+     "name": "highlight",
+     "asset": "bodyHighlight"
+    }
+   ],
+   "clip": true,
+   "x": 325,
+   "y": 330,
+   "w": 150,
+   "h": 170
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "normal",
+   "bone": null,
+   "id": "body_line",
+   "name": "Body line",
+   "group": "body_grp",
+   "drawings": [
+    {
+     "name": "line",
+     "asset": "bodyLine"
+    }
+   ],
+   "x": 325,
+   "y": 330,
+   "w": 150,
+   "h": 170
+  },
+  {
+   "type": "group",
+   "drawings": [],
+   "opacity": 1,
+   "blend": "normal",
+   "hidden": false,
+   "group": null,
+   "id": "head_grp",
+   "name": "Head",
+   "bone": "head"
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "normal",
+   "bone": null,
+   "id": "head_color",
+   "name": "Head colour",
+   "group": "head_grp",
+   "drawings": [
+    {
+     "name": "colour",
+     "asset": "headColor"
+    }
+   ],
    "x": 318,
    "y": 212,
    "w": 164,
@@ -236,8 +353,99 @@
    "active": 0,
    "bind": "rigid",
    "hidden": false,
+   "blend": "multiply",
+   "bone": null,
+   "id": "head_tex",
+   "name": "Head texture",
+   "group": "head_grp",
+   "drawings": [
+    {
+     "name": "grain",
+     "asset": "grain"
+    }
+   ],
+   "clip": true,
+   "screenLock": true,
+   "x": 0,
+   "y": 0,
+   "w": 800,
+   "h": 600
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "multiply",
+   "bone": null,
+   "id": "head_shadow",
+   "name": "Head shadow",
+   "group": "head_grp",
+   "drawings": [
+    {
+     "name": "shadow",
+     "asset": "headShadow"
+    }
+   ],
+   "clip": true,
+   "x": 318,
+   "y": 212,
+   "w": 164,
+   "h": 150
+  },
+  {
+   "opacity": 0.7,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "screen",
+   "bone": null,
+   "id": "head_hl",
+   "name": "Head highlight",
+   "group": "head_grp",
+   "drawings": [
+    {
+     "name": "highlight",
+     "asset": "headHighlight"
+    }
+   ],
+   "clip": true,
+   "x": 318,
+   "y": 212,
+   "w": 164,
+   "h": 150
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "normal",
+   "bone": null,
+   "id": "head_line",
+   "name": "Head line",
+   "group": "head_grp",
+   "drawings": [
+    {
+     "name": "line",
+     "asset": "headLine"
+    }
+   ],
+   "x": 318,
+   "y": 212,
+   "w": 164,
+   "h": 150
+  },
+  {
+   "opacity": 1,
+   "active": 0,
+   "bind": "rigid",
+   "hidden": false,
+   "blend": "normal",
+   "bone": null,
    "id": "eyes",
    "name": "Eyes (switch)",
+   "group": "head_grp",
    "drawings": [
     {
      "name": "open",
@@ -248,7 +456,6 @@
      "asset": "eyesClosed"
     }
    ],
-   "bone": "head",
    "x": 355,
    "y": 258,
    "w": 90,
@@ -259,8 +466,11 @@
    "active": 0,
    "bind": "rigid",
    "hidden": false,
+   "blend": "normal",
+   "bone": null,
    "id": "mouth",
    "name": "Mouth (switch)",
+   "group": "head_grp",
    "drawings": [
     {
      "name": "neutral",
@@ -275,7 +485,6 @@
      "asset": "mouthLaugh"
     }
    ],
-   "bone": "head",
    "x": 370,
    "y": 304,
    "w": 60,
@@ -286,6 +495,8 @@
    "active": 0,
    "bind": "mesh",
    "hidden": false,
+   "blend": "normal",
+   "bone": "armL_up",
    "id": "armL_art",
    "name": "Arm L",
    "drawings": [
@@ -294,7 +505,6 @@
      "asset": "armL"
     }
    ],
-   "bone": "armL_up",
    "bones": [
     "armL_up",
     "armL_lo"
@@ -313,6 +523,8 @@
    "active": 0,
    "bind": "mesh",
    "hidden": false,
+   "blend": "normal",
+   "bone": "armR_up",
    "id": "armR_art",
    "name": "Arm R",
    "drawings": [
@@ -321,7 +533,6 @@
      "asset": "armR"
     }
    ],
-   "bone": "armR_up",
    "bones": [
     "armR_up",
     "armR_lo"
@@ -337,8 +548,15 @@
   }
  ],
  "assets": {
-  "body": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22170%22%20viewBox%3D%220%200%20150%20170%22%3E%3Cpath%20d%3D%22M75%206%20C128%206%20144%2060%20144%20105%20C144%20148%20116%20164%2075%20164%20C34%20164%206%20148%206%20105%20C6%2060%2022%206%2075%206Z%22%20fill%3D%22%237fd1c7%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%226%22%2F%3E%0A%20%20%20%20%20%20%3Cellipse%20cx%3D%2275%22%20cy%3D%22112%22%20rx%3D%2240%22%20ry%3D%2234%22%20fill%3D%22%23c9f1ea%22%2F%3E%3Ccircle%20cx%3D%2275%22%20cy%3D%22104%22%20r%3D%229%22%20fill%3D%22%23ffb547%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E",
-  "head": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22164%22%20height%3D%22150%22%20viewBox%3D%220%200%20164%20150%22%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%22152%22%20height%3D%22138%22%20rx%3D%2262%22%20fill%3D%22%237fd1c7%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%226%22%2F%3E%0A%20%20%20%20%20%20%3Cellipse%20cx%3D%2234%22%20cy%3D%2298%22%20rx%3D%2213%22%20ry%3D%228%22%20fill%3D%22%23ff9db0%22%20opacity%3D%22.8%22%2F%3E%3Cellipse%20cx%3D%22130%22%20cy%3D%2298%22%20rx%3D%2213%22%20ry%3D%228%22%20fill%3D%22%23ff9db0%22%20opacity%3D%22.8%22%2F%3E%3C%2Fsvg%3E",
+  "bodyColor": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22170%22%20viewBox%3D%220%200%20150%20170%22%3E%3Cpath%20d%3D%22M75%206%20C128%206%20144%2060%20144%20105%20C144%20148%20116%20164%2075%20164%20C34%20164%206%20148%206%20105%20C6%2060%2022%206%2075%206Z%22%20fill%3D%22%237fd1c7%22%2F%3E%0A%20%20%20%20%20%20%3Cellipse%20cx%3D%2275%22%20cy%3D%22112%22%20rx%3D%2240%22%20ry%3D%2234%22%20fill%3D%22%23c9f1ea%22%2F%3E%3C%2Fsvg%3E",
+  "bodyShadow": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22170%22%20viewBox%3D%220%200%20150%20170%22%3E%3Cpath%20d%3D%22M150%2050%20C140%20140%20100%20170%2030%20170%20L150%20170Z%22%20fill%3D%22%239db8d6%22%2F%3E%3C%2Fsvg%3E",
+  "bodyHighlight": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22170%22%20viewBox%3D%220%200%20150%20170%22%3E%3Cellipse%20cx%3D%2246%22%20cy%3D%2242%22%20rx%3D%2222%22%20ry%3D%2212%22%20transform%3D%22rotate(-30%2046%2042)%22%20fill%3D%22%238a8a8a%22%2F%3E%3C%2Fsvg%3E",
+  "bodyLine": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22150%22%20height%3D%22170%22%20viewBox%3D%220%200%20150%20170%22%3E%3Cpath%20d%3D%22M75%206%20C128%206%20144%2060%20144%20105%20C144%20148%20116%20164%2075%20164%20C34%20164%206%20148%206%20105%20C6%2060%2022%206%2075%206Z%22%20fill%3D%22none%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%226%22%2F%3E%0A%20%20%20%20%20%20%3Ccircle%20cx%3D%2275%22%20cy%3D%22104%22%20r%3D%229%22%20fill%3D%22%23ffb547%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%224%22%2F%3E%3C%2Fsvg%3E",
+  "headColor": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22164%22%20height%3D%22150%22%20viewBox%3D%220%200%20164%20150%22%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%22152%22%20height%3D%22138%22%20rx%3D%2262%22%20fill%3D%22%237fd1c7%22%2F%3E%3C%2Fsvg%3E",
+  "headShadow": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22164%22%20height%3D%22150%22%20viewBox%3D%220%200%20164%20150%22%3E%3Cpath%20d%3D%22M164%2040%20C150%20120%2090%20150%2020%20150%20L164%20150Z%22%20fill%3D%22%239db8d6%22%2F%3E%3Cpath%20d%3D%22M0%20128%20Q60%20156%20150%20112%20L164%20150%20L0%20150Z%22%20fill%3D%22%239db8d6%22%2F%3E%3C%2Fsvg%3E",
+  "headHighlight": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22164%22%20height%3D%22150%22%20viewBox%3D%220%200%20164%20150%22%3E%3Cellipse%20cx%3D%2254%22%20cy%3D%2236%22%20rx%3D%2234%22%20ry%3D%2216%22%20transform%3D%22rotate(-18%2054%2036)%22%20fill%3D%22%238a8a8a%22%2F%3E%3C%2Fsvg%3E",
+  "headLine": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22164%22%20height%3D%22150%22%20viewBox%3D%220%200%20164%20150%22%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%22152%22%20height%3D%22138%22%20rx%3D%2262%22%20fill%3D%22none%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%226%22%2F%3E%0A%20%20%20%20%20%20%3Cellipse%20cx%3D%2234%22%20cy%3D%2298%22%20rx%3D%2213%22%20ry%3D%228%22%20fill%3D%22%23ff9db0%22%20opacity%3D%22.8%22%2F%3E%3Cellipse%20cx%3D%22130%22%20cy%3D%2298%22%20rx%3D%2213%22%20ry%3D%228%22%20fill%3D%22%23ff9db0%22%20opacity%3D%22.8%22%2F%3E%3C%2Fsvg%3E",
+  "grain": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%22600%22%20viewBox%3D%220%200%20800%20600%22%3E%3Cfilter%20id%3D%22n%22%20x%3D%220%22%20y%3D%220%22%20width%3D%22100%25%22%20height%3D%22100%25%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%220.85%22%20numOctaves%3D%223%22%20seed%3D%227%22%20stitchTiles%3D%22stitch%22%2F%3E%0A%20%20%20%20%20%20%3CfeColorMatrix%20type%3D%22saturate%22%20values%3D%220%22%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D%22linear%22%20slope%3D%220.45%22%20intercept%3D%220.62%22%2F%3E%3CfeFuncG%20type%3D%22linear%22%20slope%3D%220.45%22%20intercept%3D%220.62%22%2F%3E%3CfeFuncB%20type%3D%22linear%22%20slope%3D%220.45%22%20intercept%3D%220.62%22%2F%3E%3CfeFuncA%20type%3D%22linear%22%20slope%3D%220%22%20intercept%3D%221%22%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%0A%20%20%20%20%20%20%3Crect%20width%3D%22800%22%20height%3D%22600%22%20filter%3D%22url(%23n)%22%2F%3E%3C%2Fsvg%3E",
   "eyesOpen": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2290%22%20height%3D%2240%22%20viewBox%3D%220%200%2090%2040%22%3E%3Cellipse%20cx%3D%2218%22%20cy%3D%2220%22%20rx%3D%2211%22%20ry%3D%2215%22%20fill%3D%22%232b2340%22%2F%3E%3Cellipse%20cx%3D%2272%22%20cy%3D%2220%22%20rx%3D%2211%22%20ry%3D%2215%22%20fill%3D%22%232b2340%22%2F%3E%0A%20%20%20%20%20%20%3Ccircle%20cx%3D%2222%22%20cy%3D%2213%22%20r%3D%224%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%2276%22%20cy%3D%2213%22%20r%3D%224%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E",
   "eyesClosed": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2290%22%20height%3D%2240%22%20viewBox%3D%220%200%2090%2040%22%3E%3Cpath%20d%3D%22M6%2022%20Q18%2030%2030%2022%22%20fill%3D%22none%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%0A%20%20%20%20%20%20%3Cpath%20d%3D%22M60%2022%20Q72%2030%2084%2022%22%20fill%3D%22none%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E",
   "mouthNeutral": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2260%22%20height%3D%2234%22%20viewBox%3D%220%200%2060%2034%22%3E%3Cpath%20d%3D%22M16%2016%20L44%2016%22%20stroke%3D%22%232b2340%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E",

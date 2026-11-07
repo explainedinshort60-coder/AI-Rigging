@@ -21,7 +21,8 @@
     selKey: null,          // {store, kind, id, ch, f} or {summary:true, f}
     undo: [], redo: [],
     drag: null, hover: null, pose: null,
-    onion: false, dynamics: true, showBones: true, loop: true
+    onion: false, dynamics: true, showBones: true, loop: true,
+    collapsed: new Set()
   };
   $('#ver').textContent = 'v' + RK.VERSION;
 
@@ -173,9 +174,12 @@
     // selected layer outline
     if (S.sel && S.sel.type === 'layer') {
       const l = layerById(S.sel.id);
-      if (l) {
+      const outl = l ? (RK.isGroup(l) ? groupLeaves(l.id) : [l]) : [];
+      for (const l of outl) {
+        ctx.setTransform(V[0], V[1], V[2], V[3], V[4], V[5]);
         ctx.lineWidth = 1.5 / S.view.z; ctx.strokeStyle = '#ff9f43';
-        if (l.bind === 'mesh' && RK.layerBones(l).length) {
+        if (l.screenLock) { ctx.setLineDash([2 / S.view.z, 4 / S.view.z]); ctx.strokeRect(l.x, l.y, l.w, l.h); ctx.setLineDash([]); continue; }
+        if (l.bind === 'mesh' && RK.layerBones(l, S.P).length) {
           const { md, pts } = RK.deformMesh(S.P, l, pose);
           ctx.strokeStyle = '#ff9f4388'; ctx.beginPath();
           for (let t = 0; t < md.tris.length; t += 3) {
@@ -184,7 +188,7 @@
           }
           ctx.stroke();
         } else {
-          const m = M.mul(V, RK.boneDelta(pose, l.bone));
+          const m = M.mul(V, RK.boneDelta(pose, RK.effectiveBone(S.P, l)));
           ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
           ctx.setLineDash([6 / S.view.z, 4 / S.view.z]); ctx.strokeRect(l.x, l.y, l.w, l.h); ctx.setLineDash([]);
         }
@@ -257,8 +261,8 @@
   }
   function hitLayer(p, pose) {
     for (let i = S.P.layers.length - 1; i >= 0; i--) {
-      const l = S.P.layers[i]; if (l.hidden) continue;
-      const q = M.apply(M.inv(RK.boneDelta(pose, l.bind === 'mesh' ? (RK.layerBones(l)[0]) : l.bone)), p[0], p[1]);
+      const l = S.P.layers[i]; if (l.hidden || RK.isGroup(l) || l.screenLock || isHiddenByGroup(l)) continue;
+      const q = M.apply(M.inv(RK.boneDelta(pose, RK.layerBones(l, S.P)[0])), p[0], p[1]);
       if (q[0] >= l.x && q[0] <= l.x + l.w && q[1] >= l.y && q[1] <= l.y + l.h) return l;
     }
     return null;
@@ -453,8 +457,9 @@
       checkpoint();
       if (!isSetup()) setFrameRaw(0);
       const bone = S.sel && S.sel.type === 'bone' ? S.sel.id : null;
+      const selG = S.sel && S.sel.type === 'layer' && RK.isGroup(layerById(S.sel.id)) ? S.sel.id : null;
       const mk = (name, drawings, w, h) => {
-        const l = Object.assign({ id: uid('layer', id => !!layerById(id)), name, drawings, bone, bind: 'rigid', opacity: 1, active: 0, hidden: false, mesh: { cols: 6, rows: 6 } }, fitRect(w, h));
+        const l = Object.assign({ id: uid('layer', id => !!layerById(id)), name, drawings, bone, group: selG, bind: 'rigid', opacity: 1, active: 0, hidden: false, mesh: { cols: 6, rows: 6 } }, fitRect(w, h));
         S.P.layers.push(l); return l;
       };
       let last;
@@ -473,10 +478,92 @@
       changed(true);
     });
   }
+  // ---- layer tree helpers
+  const groupOf = l => (l.group && layerById(l.group)) ? l.group : null;
+  function siblings(groupId) { return S.P.layers.filter(l => groupOf(l) === (groupId || null)); }
+  function groupLeaves(gid) {
+    const out = [];
+    for (const l of siblings(gid)) { if (RK.isGroup(l)) out.push(...groupLeaves(l.id)); else out.push(l); }
+    return out;
+  }
+  function isHiddenByGroup(l) { let g = groupOf(l), n = 0; while (g && n++ < 64) { const gl = layerById(g); if (gl.hidden) return true; g = groupOf(gl); } return false; }
+  function groupDescendants(gid) { const set = new Set([gid]); let grew = true; while (grew) { grew = false; for (const l of S.P.layers) if (l.group && set.has(l.group) && !set.has(l.id)) { set.add(l.id); grew = true; } } return set; }
   function moveLayer(id, dir) {
-    const i = S.P.layers.findIndex(l => l.id === id), j = i + dir;
-    if (j < 0 || j >= S.P.layers.length) return;
-    checkpoint(); const a = S.P.layers; [a[i], a[j]] = [a[j], a[i]]; changed(true);
+    const l = layerById(id); const sib = siblings(groupOf(l));
+    const k = sib.indexOf(l), other = sib[k + dir]; if (!other) return;
+    checkpoint();
+    const a = S.P.layers, i = a.indexOf(l), j = a.indexOf(other);
+    [a[i], a[j]] = [a[j], a[i]]; changed(true);
+  }
+  function addGroup() {
+    checkpoint();
+    const sel = S.sel && S.sel.type === 'layer' ? layerById(S.sel.id) : null;
+    const bone = S.sel && S.sel.type === 'bone' ? S.sel.id : (sel ? RK.effectiveBone(S.P, sel) : null);
+    const g = { id: uid('group', id => !!layerById(id)), name: 'Group', type: 'group', drawings: [], bone, blend: 'normal', opacity: 1, hidden: false, group: sel ? groupOf(sel) : null };
+    if (sel) {
+      S.P.layers.splice(S.P.layers.indexOf(sel), 0, g);
+      sel.group = g.id; if (sel.bone === bone) sel.bone = null; // child now follows the group's bone
+      g.name = sel.name + ' group';
+    } else S.P.layers.push(g);
+    S.sel = { type: 'layer', id: g.id }; S.collapsed.delete(g.id);
+    changed(true); toast('Group created. Set its bone once; children without a bone follow it.');
+  }
+  function ungroup(gid, deleteKids) {
+    checkpoint();
+    const g = layerById(gid); const parent = groupOf(g);
+    if (deleteKids) { const d = groupDescendants(gid); S.P.layers = S.P.layers.filter(l => !d.has(l.id)); }
+    else {
+      for (const l of S.P.layers) if (l.group === gid) { l.group = parent; if (!l.bone && g.bone && l.bind !== 'mesh') l.bone = g.bone; }
+      S.P.layers = S.P.layers.filter(l => l !== g);
+    }
+    delete S.P.anim.layers[gid]; changed(true);
+  }
+  function setLayerGroup(l, gid) {
+    if (gid && groupDescendants(l.id).has(gid)) return toast('Cannot put a group inside itself');
+    const eff = RK.effectiveBone(S.P, l);
+    l.group = gid || null;
+    if (!l.bone && eff && RK.effectiveBone(S.P, l) !== eff) l.bone = eff; // keep it following the same bone
+    // keep children after their new group in the array so draw order inside the group stays predictable
+    if (gid) { const a = S.P.layers; a.splice(a.indexOf(l), 1); const sibs = a.filter(x => x.group === gid); const after = sibs.length ? a.indexOf(sibs[sibs.length - 1]) : a.indexOf(layerById(gid)); a.splice(after + 1, 0, l); }
+  }
+
+  // ---- part stack importer: arm_color.png, arm_shadow.png, arm_line.png ... -> one clipped, blended group
+  const ROLES = [
+    ['color', /(?:^|[_\-\s.])(colou?r|fill|base|flats?|paint)$/i, { order: 0 }],
+    ['texture', /(?:^|[_\-\s.])(texture|tex|grain|paper|pattern)$/i, { order: 1, clip: true, blend: 'multiply', opacity: 0.6 }],
+    ['shadow', /(?:^|[_\-\s.])(shadows?|shade|shading|sh|tone)$/i, { order: 2, clip: true, blend: 'multiply' }],
+    ['highlight', /(?:^|[_\-\s.])(highlights?|hl|light|rim|shine|glow)$/i, { order: 3, clip: true, blend: 'screen' }],
+    ['line', /(?:^|[_\-\s.])(lines?|ink|lineart|outline|stroke)$/i, { order: 4 }]
+  ];
+  function roleOf(name) {
+    for (const [role, re, cfg] of ROLES) { const m = name.match(re); if (m) return { role, cfg, prefix: name.slice(0, m.index).replace(/[_\-\s.]+$/, '') || 'part' }; }
+    return { role: 'other', cfg: { order: 5 }, prefix: name };
+  }
+  function addPartStacks(files) {
+    readFiles(files).then(list => {
+      if (!list.length) return;
+      checkpoint(); if (!isSetup()) setFrameRaw(0);
+      const bone = S.sel && S.sel.type === 'bone' ? S.sel.id : null;
+      const groups = {};
+      for (const it of list) { const r = roleOf(it.name); (groups[r.prefix] = groups[r.prefix] || []).push(Object.assign(it, r)); }
+      let lastG;
+      for (const prefix in groups) {
+        const items = groups[prefix].sort((a, b) => a.cfg.order - b.cfg.order);
+        const hasBase = items.some(i => i.role === 'color');
+        const rect = fitRect(items[0].w, items[0].h), sc = rect.w / items[0].w;
+        const g = { id: uid('group', id => !!layerById(id)), name: prefix, type: 'group', drawings: [], bone, blend: 'normal', opacity: 1, hidden: false, group: null };
+        S.P.layers.push(g);
+        for (const it of items) {
+          const clip = hasBase && !!it.cfg.clip;
+          S.P.layers.push({ id: uid('layer', id => !!layerById(id)), name: `${prefix} ${it.role === 'other' ? it.name : it.role}`, drawings: [{ name: it.name, asset: addAsset(it.name, it.url) }],
+            group: g.id, bone: null, bind: 'rigid', opacity: it.cfg.opacity || 1, active: 0, hidden: false, mesh: { cols: 6, rows: 6 },
+            blend: clip ? it.cfg.blend : 'normal', clip, x: rect.x, y: rect.y, w: round(it.w * sc), h: round(it.h * sc) });
+        }
+        lastG = g;
+      }
+      S.sel = { type: 'layer', id: lastG.id }; changed(true);
+      toast(`Built ${Object.keys(groups).length} part stack(s). Shadow = multiply, highlight = screen, texture = multiply, all clipped to colour.`);
+    });
   }
 
   /* ---------------------------------------------------------- selection */
@@ -486,22 +573,33 @@
 
   function refreshLists() {
     const ll = $('#layerList'); ll.innerHTML = '';
-    for (let i = S.P.layers.length - 1; i >= 0; i--) {
-      const l = S.P.layers[i];
-      const li = document.createElement('li');
-      if (S.sel && S.sel.type === 'layer' && S.sel.id === l.id) li.className = 'sel';
-      const bound = l.bind === 'mesh' ? 'mesh' : l.bone ? 'bone' : '';
-      li.innerHTML = `<span class="ic eye">${l.hidden ? '◌' : '●'}</span><span class="nm">${esc(l.name)}</span>` +
-        (l.drawings.length > 1 ? `<span class="tag">⇄${l.drawings.length}</span>` : '') + (bound ? `<span class="tag">${bound}</span>` : '') +
-        `<button class="mini up" title="Bring forward">▲</button><button class="mini dn" title="Send back">▼</button>`;
-      li.onclick = ev => {
-        if (ev.target.classList.contains('eye')) { checkpoint(); l.hidden = !l.hidden; changed(true); return; }
-        if (ev.target.classList.contains('up')) return moveLayer(l.id, 1);
-        if (ev.target.classList.contains('dn')) return moveLayer(l.id, -1);
-        select({ type: 'layer', id: l.id });
-      };
-      ll.appendChild(li);
-    }
+    const addRows = (gid, depth) => {
+      const sib = siblings(gid);
+      for (let i = sib.length - 1; i >= 0; i--) {
+        const l = sib[i], isG = RK.isGroup(l);
+        const li = document.createElement('li');
+        if (S.sel && S.sel.type === 'layer' && S.sel.id === l.id) li.className = 'sel';
+        li.style.paddingLeft = (6 + depth * 14) + 'px';
+        const bound = isG ? (l.bone ? 'bone' : '') : l.screenLock ? 'lock' : l.bind === 'mesh' ? 'mesh' : l.bone ? 'bone' : '';
+        const blend = l.blend && l.blend !== 'normal' ? l.blend.replace('color-', 'c-').slice(0, 7) : '';
+        li.innerHTML = `<span class="ic eye">${l.hidden ? '◌' : '●'}</span>` +
+          (isG ? `<span class="ic fold">${S.collapsed.has(l.id) ? '▸' : '▾'}</span>` : (l.clip ? '<span class="ic clipic" title="Clipped to the layer below">↳</span>' : '')) +
+          `<span class="nm${isG ? ' grp' : ''}">${esc(l.name)}</span>` +
+          ((l.drawings || []).length > 1 ? `<span class="tag">⇄${l.drawings.length}</span>` : '') +
+          (blend ? `<span class="tag blend">${blend}</span>` : '') + (bound ? `<span class="tag">${bound}</span>` : '') +
+          `<button class="mini up" title="Bring forward">▲</button><button class="mini dn" title="Send back">▼</button>`;
+        li.onclick = ev => {
+          if (ev.target.classList.contains('eye')) { checkpoint(); l.hidden = !l.hidden; changed(true); return; }
+          if (ev.target.classList.contains('fold')) { S.collapsed.has(l.id) ? S.collapsed.delete(l.id) : S.collapsed.add(l.id); refreshLists(); return; }
+          if (ev.target.classList.contains('up')) return moveLayer(l.id, 1);
+          if (ev.target.classList.contains('dn')) return moveLayer(l.id, -1);
+          select({ type: 'layer', id: l.id });
+        };
+        ll.appendChild(li);
+        if (isG && !S.collapsed.has(l.id)) addRows(l.id, depth + 1);
+      }
+    };
+    addRows(null, 0);
     const bl = $('#boneList'); bl.innerHTML = '';
     const depth = b => { let d = 0, p = b; while (p && p.parent && d < 50) { p = boneById(p.parent); d++; } return d; };
     for (const b of RK.sortBones(S.P.bones)) {
@@ -533,7 +631,8 @@
     if (!S.P) return;
     if (!S.sel) return inspectProject(box);
     if (S.sel.type === 'bone') return inspectBone(box, boneById(S.sel.id));
-    return inspectLayer(box, layerById(S.sel.id));
+    const sl = layerById(S.sel.id);
+    return RK.isGroup(sl) ? inspectGroup(box, sl) : inspectLayer(box, sl);
   }
 
   function bind(box, handlers) {
@@ -605,18 +704,51 @@
     });
   }
 
+  function inspectGroup(box, g) {
+    $('#inspTitle').textContent = 'Group';
+    const pose = evalPose(null, false);
+    const groups = S.P.layers.filter(x => RK.isGroup(x) && !groupDescendants(g.id).has(x.id));
+    const kids = siblings(g.id);
+    box.innerHTML = field('Name', txt('name', g.name)) +
+      field('Bone', `<select data-k="bone"><option value="">(none)</option>${S.P.bones.map(b => `<option value="${b.id}" ${b.id === g.bone ? 'selected' : ''}>${esc(b.name || b.id)}</option>`).join('')}</select>`) +
+      `<p class="note">Children without their own bone follow this one. Bind the group once instead of every colour, shadow and line layer.</p>` +
+      field('Inside', `<select data-k="group"><option value="">(top level)</option>${groups.map(x => `<option value="${x.id}" ${x.id === g.group ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`) +
+      field('Blend', `<select data-k="blend">${RK.BLENDS.map(b => `<option value="${b}" ${b === (g.blend || 'normal') ? 'selected' : ''}>${b}</option>`).join('')}</select>`) +
+      field('Opacity', num('opacity', g.opacity == null ? 1 : g.opacity, 0.05)) +
+      `<div class="checks">${chk('clip', g.clip, 'clip to layer below')}</div>` +
+      field('Z offset', num('zKey', pose.layers[g.id] ? pose.layers[g.id].z || 0 : 0, 1)) +
+      `<p class="note">${kids.length} layer(s) inside. A group with a blend mode or opacity under 1 is composited as one image (isolated), otherwise children blend straight through.</p>` +
+      `<div class="sub"><div class="btnrow"><button data-act="ungroup">Ungroup</button><button data-act="delAll" class="danger">Delete group + contents</button></div></div>`;
+    bind(box, {
+      name: v => g.name = v, bone: v => g.bone = v || null, blend: v => g.blend = v, clip: v => g.clip = v,
+      group: v => setLayerGroup(g, v || null),
+      opacity: v => g.opacity = Math.max(0, Math.min(1, v)),
+      zKey: v => { if (isSetup()) { toast('Z offset is keyed on frame 1+. On frame 0 use the layer order arrows.'); return; } RK.setKey(RK.trackOf(modeStore(), 'layers', g.id, 'z', true), modeFrame(), Math.round(v), 'step'); },
+      '@ungroup': () => ungroup(g.id, false),
+      '@delAll': () => { if (confirm('Delete this group and every layer inside it?')) ungroup(g.id, true); }
+    });
+  }
+
   function inspectLayer(box, l) {
     $('#inspTitle').textContent = l.drawings.length > 1 ? 'Switch layer' : 'Image layer';
     const pose = evalPose(null, false);
     const cur = pose.layers[l.id] ? pose.layers[l.id].switch : 0;
     const boneOpts = `<option value="">(none)</option>` + S.P.bones.map(b => `<option value="${b.id}" ${b.id === l.bone ? 'selected' : ''}>${esc(b.name || b.id)}</option>`).join('');
-    const meshB = RK.layerBones(l);
+    const meshB = RK.layerBones(l, S.P);
+    const groups = S.P.layers.filter(g => RK.isGroup(g));
+    const blendOpts = RK.BLENDS.map(b => `<option value="${b}" ${b === (l.blend || 'normal') ? 'selected' : ''}>${b}</option>`).join('');
+    const inherited = !l.bone && RK.effectiveBone(S.P, l);
     box.innerHTML = field('Name', txt('name', l.name)) +
       `<div class="sub"><h4>Drawings ${l.drawings.length > 1 ? '(switch)' : ''}</h4>` +
       l.drawings.map((d, i) => `<div class="draw"><input type="radio" name="sw" data-sw="${i}" ${i === cur ? 'checked' : ''} title="Show this drawing (keys it on frame 1+)"><img src="${S.P.assets[d.asset] || ''}"><input type="text" data-dn="${i}" value="${esc(d.name)}">${l.drawings.length > 1 ? `<button data-dd="${i}" class="mini danger" title="Remove">✕</button>` : ''}</div>`).join('') +
       `<div class="btnrow"><button data-act="addDrawing">+ Drawing</button></div><p class="note">More than one drawing makes this a switch layer (mouths, hands, eyes, head turns). Picking a drawing on frame 1+ sets a stepped key.</p></div>` +
+      `<div class="sub"><h4>Compositing</h4>` +
+      field('Group', `<select data-k="group"><option value="">(top level)</option>${groups.map(g => `<option value="${g.id}" ${g.id === l.group ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`) +
+      field('Blend', `<select data-k="blend">${blendOpts}</select>`) +
+      `<div class="checks">${chk('clip', l.clip, 'clip to layer below')}${chk('screenLock', l.screenLock, 'lock to screen (texture)')}</div>` +
+      `<p class="note">Typical part stack: colour (base) · texture multiply, clipped · shadow multiply, clipped · highlight screen, clipped · line on top. Lock to screen keeps a texture still while the part moves.</p></div>` +
       `<div class="sub"><h4>Binding</h4>` +
-      field('Bone', `<select data-k="bone">${boneOpts}</select>`) +
+      field('Bone', `<select data-k="bone">${boneOpts.replace('(none)', inherited ? '(follow group: ' + esc((boneById(inherited) || {}).name || inherited) + ')' : '(none)')}</select>`) +
       field('Mode', `<select data-k="bind"><option value="rigid" ${l.bind !== 'mesh' ? 'selected' : ''}>Rigid (layer binding)</option><option value="mesh" ${l.bind === 'mesh' ? 'selected' : ''}>Mesh (bends, smart warp)</option></select>`) +
       (l.bind === 'mesh' ? field('Mesh cols / rows', `<div class="pair">${num('mCols', (l.mesh && l.mesh.cols) || 6, 1)}${num('mRows', (l.mesh && l.mesh.rows) || 6, 1)}</div>`) +
         field('Weight falloff', num('mFall', (l.mesh && l.mesh.falloff) || 2.5, 0.1)) +
@@ -633,6 +765,8 @@
       `<div class="sub"><div class="btnrow"><button data-act="dup">Duplicate</button><button data-act="del" class="danger">Delete layer</button></div></div>`;
     bind(box, {
       name: v => l.name = v,
+      group: v => setLayerGroup(l, v || null),
+      blend: v => l.blend = v, clip: v => l.clip = v, screenLock: v => l.screenLock = v,
       bone: v => { l.bone = v || null; if (l.bind === 'mesh' && v && !(l.bones || []).length) l.bones = [v]; },
       bind: v => { l.bind = v; if (v === 'mesh' && !(l.bones && l.bones.length) && l.bone) { const kids = S.P.bones.filter(b => b.parent === l.bone).map(b => b.id); l.bones = [l.bone, ...kids]; } l.mesh = l.mesh || { cols: 6, rows: 6 }; },
       mFall: v => l.mesh = Object.assign({}, l.mesh, { falloff: Math.max(1, Math.min(8, v)) }),
@@ -646,11 +780,12 @@
       '@dup': () => { checkpoint(); const c = JSON.parse(JSON.stringify(l)); c.id = uid('layer', id => !!layerById(id)); c.name += ' copy'; S.P.layers.splice(S.P.layers.indexOf(l) + 1, 0, c); S.sel = { type: 'layer', id: c.id }; changed(true); },
       '@del': () => { checkpoint(); S.P.layers = S.P.layers.filter(x => x !== l); delete S.P.anim.layers[l.id]; changed(true); }
     });
+    box.querySelector('[data-k="bone"]').querySelector('option[value=""]').textContent = inherited ? `(follow group: ${(boneById(inherited) || {}).name || inherited})` : '(none)';
     box.querySelectorAll('[data-sw]').forEach(el => el.addEventListener('change', () => { checkpoint(); setLayerSwitch(l.id, +el.dataset.sw); changed(true); }));
     box.querySelectorAll('[data-dn]').forEach(el => el.addEventListener('change', () => { checkpoint(); l.drawings[+el.dataset.dn].name = el.value; changed(); }));
     box.querySelectorAll('[data-dd]').forEach(el => el.addEventListener('click', () => { checkpoint(); l.drawings.splice(+el.dataset.dd, 1); l.active = Math.min(l.active || 0, l.drawings.length - 1); changed(true); }));
     box.querySelectorAll('[data-mb]').forEach(el => el.addEventListener('change', () => {
-      checkpoint(); const set = new Set(RK.layerBones(l)); if (el.checked) set.add(el.dataset.mb); else set.delete(el.dataset.mb); l.bones = Array.from(set); changed(true);
+      checkpoint(); const set = new Set(RK.layerBones(l, S.P)); if (el.checked) set.add(el.dataset.mb); else set.delete(el.dataset.mb); l.bones = Array.from(set); changed(true);
     }));
   }
 
@@ -931,7 +1066,11 @@ document.getElementById('c').addEventListener('click', function () { player.play
       lines.push(`- ${b.id} "${b.name}" parent=${b.parent || '-'} worldAngle=${wa} length=${round(b.length)}${notes.length ? ' | ' + notes.join('; ') : ''}`);
     }
     lines.push('', '## Layers (id, name, bound bone, drawings)');
-    for (const l of P.layers) lines.push(`- ${l.id} "${l.name}" bone=${l.bind === 'mesh' ? 'mesh[' + RK.layerBones(l).join(',') + ']' : (l.bone || '-')} drawings=[${l.drawings.map((d, i) => i + ':' + d.name).join(', ')}]`);
+    for (const l of P.layers) {
+      const extra = [l.group ? 'in=' + l.group : '', l.blend && l.blend !== 'normal' ? 'blend=' + l.blend : '', l.clip ? 'clipped' : '', l.screenLock ? 'screen-locked' : ''].filter(Boolean).join(' ');
+      if (RK.isGroup(l)) { lines.push(`- ${l.id} "${l.name}" GROUP bone=${l.bone || '-'} ${extra}`); continue; }
+      lines.push(`- ${l.id} "${l.name}" bone=${l.bind === 'mesh' ? 'mesh[' + RK.layerBones(l, P).join(',') + ']' : (RK.effectiveBone(P, l) || '-')} drawings=[${l.drawings.map((d, i) => i + ':' + d.name).join(', ')}] ${extra}`);
+    }
     const acts = Object.keys(P.actions || {});
     if (acts.length) {
       lines.push('', '## Smart bone actions');
@@ -999,6 +1138,7 @@ document.getElementById('c').addEventListener('click', function () { player.play
     aiPaste: () => modal('Paste animation JSON', 'Accepts <code>{"anim":{…}}</code>, <code>{"actions":{…}}</code> or a full project. Merge adds keys; Replace clears existing timeline keys first.', '', [['Cancel', () => { }], ['Replace', v => pasteAnim(v, true)], ['Merge', v => pasteAnim(v, false)]]),
     addImages: () => { $('#fileImages').value = ''; $('#fileImages').click(); },
     addSwitch: () => { $('#fileSwitch').value = ''; $('#fileSwitch').click(); },
+    addGroup, addStack: () => { $('#fileStack').value = ''; $('#fileStack').click(); },
     exitAction,
     first: () => setFrame(S.action ? 0 : (S.frame === 1 ? 0 : 1)), last: () => setFrame(S.P.frames),
     prev: () => setFrame(S.frame - 1), next: () => setFrame(S.frame + 1),
@@ -1020,6 +1160,7 @@ document.getElementById('c').addEventListener('click', function () { player.play
 
   $('#fileImages').addEventListener('change', e => addImageLayers(e.target.files, false));
   $('#fileSwitch').addEventListener('change', e => addImageLayers(e.target.files, true));
+  $('#fileStack').addEventListener('change', e => addPartStacks(e.target.files));
   $('#fileDrawing').addEventListener('change', e => addDrawings(e.target.dataset.layer, e.target.files));
   $('#fileProject').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1065,7 +1206,11 @@ document.getElementById('c').addEventListener('click', function () { player.play
     else if (k === 'delete' || k === 'backspace') {
       if (S.selKey) deleteSelKey();
       else if (S.sel && S.sel.type === 'bone') deleteBone(S.sel.id);
-      else if (S.sel && S.sel.type === 'layer') { checkpoint(); const id = S.sel.id; S.P.layers = S.P.layers.filter(l => l.id !== id); changed(true); }
+      else if (S.sel && S.sel.type === 'layer') {
+        const sl = layerById(S.sel.id);
+        if (RK.isGroup(sl)) ungroup(sl.id, false);
+        else { checkpoint(); const id = S.sel.id; S.P.layers = S.P.layers.filter(l => l.id !== id); changed(true); }
+      }
     }
   });
 

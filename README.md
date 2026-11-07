@@ -25,7 +25,7 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 2. The **Pip** demo rig loads. Press **Space** to play.
 3. Drag a bone to rotate it. On frame 1+ every change auto-keys.
 
-## Features (v0.1)
+## Features (v0.2)
 
 | Moho idea | AI Rigging | Notes |
 |---|---|---|
@@ -35,6 +35,11 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 | Layer binding | Yes | "Rigid" mode: an image follows one bone. |
 | Smart Warp / region binding | Yes | "Mesh" mode: an image is a grid mesh skinned to several bones by distance and bone strength, so arms, tails and antennas bend smoothly. Weight falloff per layer fixes elbow folds. |
 | Switch layers | Yes | Any layer with more than one drawing. Mouths, eyes, hands, head turns. Stepped keys. |
+| Group layers | Yes | Folders in the layer panel. Bind a group to a bone once; children follow it. Collapse, hide, reorder, nest. |
+| Clipping masks | Yes | A layer clips to the layer below it, so shadows, highlights and textures stay inside the colour shape. |
+| Blend modes | Yes | Multiply, screen, overlay, soft light, add and more, per layer or per group. |
+| Screen-locked texture | Yes | A paper or brush texture that stays still while the part moves (the classic 2D grain look). |
+| Part stack import | Yes | Drop `arm_color.png`, `arm_shadow.png`, `arm_highlight.png`, `arm_texture.png`, `arm_line.png` and it builds the clipped, blended group for you. |
 | Layer flip | Yes | Mirror one limb drawing for both sides. |
 | Draw-order keys | Yes | Keyable `z` offset so an arm can swap in front of or behind the body mid-shot. |
 | Smart bones | Yes | Mark a bone as a dial, press **Edit action**, set the dial value and pose. Rotating the dial replays corrective poses and drawing swaps. |
@@ -47,8 +52,9 @@ Moho, Harmony and Spine are great, but their rigs stay inside their apps (or nee
 ## Workflow
 
 1. **Frame 0, import art.** `+ Images` adds one layer per file (PNG, SVG, JPG, WebP), or drag files onto the stage. `+ Switch` makes one switch layer from several files. Draw hidden areas in full under overlaps so joints do not gap.
+   For painted parts, export each part's layers from Photoshop, Krita or Procreate as separate PNGs on the **same canvas size**, named `part_role.png`, and use `+ Part stack`. Roles: `color` / `fill` / `base`, `texture` / `grain`, `shadow` / `shade`, `highlight` / `light` / `rim`, `line` / `ink`. Each part becomes a group: colour at the base, texture and shadow multiplied and clipped, highlight screened and clipped, line on top.
 2. **Add bones.** Press **B**, drag from the joint to the tip. A new bone becomes a child of the selected bone. Put pivots at the centre of each joint.
-3. **Bind.** Select a layer, pick its bone in the inspector. Use **Mesh** for parts that should bend and tick the bones that influence it.
+3. **Bind.** Select a layer or a group, pick its bone in the inspector. Layers inside a group follow the group's bone unless they have their own. Use **Mesh** for parts that should bend and tick the bones that influence it.
 4. **Animate.** Go to frame 1+. Pose with **V** (rotate), **T** (translate) or **I** (IK). Every change keys the current frame. Pick drawings in the inspector to key switch layers. Select keys in the timeline to change eases or drag them in time.
 5. **Smart bones.** Select a bone, tick *this bone is a dial*, press *Edit action*. Scrub the dial in the timeline, pose other bones or pick drawings. Back in the animation, keying the dial bone's angle plays the action.
 6. **Export.** *Export HTML* for the web, *Export video* for a WebM, *Save* for the project JSON.

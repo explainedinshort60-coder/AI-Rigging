@@ -78,6 +78,31 @@ Bones may be listed in any order; the engine sorts parents before children.
 
 Array order is draw order: first is at the back.
 
+### Groups, clipping, blend modes
+
+Layers form a tree. A **group** is a layer with `"type": "group"` and no drawings; its children point to it with `"group": "<groupId>"`.
+
+```json
+{ "id": "head_grp", "name": "Head", "type": "group", "bone": "head", "blend": "normal", "opacity": 1, "drawings": [] },
+{ "id": "head_color",  "group": "head_grp", "drawings": [ ... ] },
+{ "id": "head_tex",    "group": "head_grp", "clip": true, "blend": "multiply", "screenLock": true, "drawings": [ ... ] },
+{ "id": "head_shadow", "group": "head_grp", "clip": true, "blend": "multiply", "drawings": [ ... ] },
+{ "id": "head_hl",     "group": "head_grp", "clip": true, "blend": "screen", "opacity": 0.7, "drawings": [ ... ] },
+{ "id": "head_line",   "group": "head_grp", "drawings": [ ... ] }
+```
+
+| Field | Meaning |
+|---|---|
+| `type: "group"` | Container. Draw order inside it = array order of its children (plus keyed `z`). |
+| `group` | Parent group id. Missing or unknown = top level. |
+| `bone` on a group | Children with no `bone` of their own (and not mesh-bound to their own bones) follow it. Bind once per part. |
+| `blend` | `normal`, `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`, `difference`, `add`. |
+| `clip` | Clipped to the nearest non-clipped layer **below** it in the same container (Photoshop clipping mask). The base's blend and opacity apply to the whole clipped stack. |
+| `screenLock` | The drawing ignores bones and stays fixed to the stage. Clip it to a colour layer for a texture that stays still while the part moves. |
+| group `blend` / `opacity` | A group with a blend mode or opacity under 1 is composited as one isolated image; otherwise its children blend straight through (Photoshop "pass through"). |
+
+A typical part stack, back to front: **colour** (base) · **texture** (multiply, clipped, often screen-locked) · **shadow** (multiply, clipped) · **highlight** (screen, clipped) · **line**.
+
 ## Keys and channels
 
 A track is an array of keys: `[frame, value, ease]`. The ease shapes the segment **after** the key. Before the first key the first value holds; after the last key the last value holds.
@@ -127,7 +152,7 @@ Keying `anim.bones.smile.a` from 0 to 45 then makes Pip smile; 80 makes him laug
 4. Angle constraints.
 5. Forward kinematics.
 6. Bone dynamics (playback and export).
-7. Layers drawn back to front: rigid layers by `boneWorld * inverse(boneRest)`, mesh layers by linear blend skinning.
+7. Layers drawn back to front through the group tree: rigid layers by `boneWorld * inverse(boneRest)`, mesh layers by linear blend skinning, clipping stacks and blended groups composited in offscreen buffers cropped to their bounds.
 
 ## Partial JSON for "Paste anim JSON"
 

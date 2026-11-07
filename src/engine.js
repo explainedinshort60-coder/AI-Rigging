@@ -19,7 +19,7 @@
 function RigKitEngine(global) {
   'use strict';
   const RK = {};
-  RK.VERSION = '0.1.0';
+  RK.VERSION = '0.2.0';
   const DEG = Math.PI / 180;
 
   /* ------------------------------------------------------------------ math */
@@ -318,15 +318,29 @@ function RigKitEngine(global) {
 
   /* ------------------------------------------------------------------ mesh */
   const meshCache = new WeakMap();
-  RK.layerBones = function (layer) {
-    if (layer.bind === 'mesh' && layer.bones && layer.bones.length) return layer.bones;
-    return layer.bone ? [layer.bone] : [];
+  // A layer with no bone of its own follows the bone of its nearest group.
+  RK.effectiveBone = function (project, layer) {
+    let l = layer, guard = 0;
+    while (l && guard++ < 64) {
+      if (l.bone) return l.bone;
+      if (!l.group || !project) return null;
+      l = project.layers.find(x => x.id === l.group);
+    }
+    return null;
   };
+  RK.layerBones = function (layer, project) {
+    if (layer.bind === 'mesh' && layer.bones && layer.bones.length) return layer.bones;
+    const b = project ? RK.effectiveBone(project, layer) : layer.bone;
+    return b ? [b] : [];
+  };
+  RK.isGroup = l => l.type === 'group';
+  RK.BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'add'];
+  const GCO = b => (!b || b === 'normal') ? 'source-over' : b === 'add' ? 'lighter' : b;
 
   RK.meshData = function (project, layer, rest) {
     const cols = Math.max(1, (layer.mesh && layer.mesh.cols) || 4);
     const rows = Math.max(1, (layer.mesh && layer.mesh.rows) || 4);
-    const ids = RK.layerBones(layer).filter(id => rest[id]);
+    const ids = RK.layerBones(layer, project).filter(id => rest[id]);
     const bonesById = {}; project.bones.forEach(b => bonesById[b.id] = b);
     const sig = JSON.stringify([layer.x, layer.y, layer.w, layer.h, cols, rows, ids, !!layer.flipX, !!layer.flipY, layer.mesh && layer.mesh.falloff,
       ids.map(id => [rest[id], bonesById[id] && bonesById[id].length, bonesById[id] && bonesById[id].strength])]);
@@ -423,7 +437,155 @@ function RigKitEngine(global) {
    * opts.view: matrix applied first (editor pan/zoom, device pixel ratio)
    * opts.background: true to fill the stage with project.background
    * opts.alpha: global alpha multiplier (onion skins)
+   *
+   * Layer tree: layers with `group` set are children of that group layer (type "group").
+   * Order inside a container = array order + keyed z offset. A layer with `clip: true`
+   * is clipped to the nearest non-clipped layer below it (Photoshop clipping mask).
+   * `blend` sets the composite mode. `screenLock` keeps the art fixed to the stage
+   * (screen-space texture) instead of following bones.
    */
+  function makeCanvas(w, h) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+    const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  }
+  // Offscreen buffers are cropped to the bounds of what they hold (device pixels), and pooled.
+  const pool = [];
+  function acquire(w, h) {
+    w = Math.max(1, Math.ceil(w)); h = Math.max(1, Math.ceil(h));
+    let k = pool.findIndex(c => c.width >= w && c.height >= h && c.width <= w * 2 + 64 && c.height <= h * 2 + 64);
+    const c = k >= 0 ? pool.splice(k, 1)[0] : makeCanvas(w, h);
+    const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+    x.clearRect(0, 0, w, h);
+    c._w = w; c._h = h;
+    return c;
+  }
+  function release(c) { if (pool.length < 24) pool.push(c); }
+  function blit(dst, src, alpha, blend, bx, by) {
+    dst.save(); dst.setTransform(1, 0, 0, 1, 0, 0);
+    dst.globalAlpha = alpha; dst.globalCompositeOperation = GCO(blend);
+    dst.drawImage(src, 0, 0, src._w, src._h, bx || 0, by || 0, src._w, src._h); dst.restore();
+  }
+  const shiftView = (view, bx, by) => [view[0], view[1], view[2], view[3], view[4] - bx, view[5] - by];
+
+  // Device-pixel bounds [x0, y0, x1, y1] of an item, clamped to the target canvas
+  function itemBounds(project, item, pose, view, cw, ch) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (m, x, y) => { const q = M.apply(m, x, y); x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); };
+    const walk = it => {
+      if (it.hidden) return;
+      if (RK.isGroup(it)) { RK.childrenOf(project, it.id, pose).forEach(walk); return; }
+      if (it.bind === 'mesh' && !it.screenLock && RK.layerBones(it, project).length) {
+        const { pts } = RK.deformMesh(project, it, pose);
+        for (let i = 0; i < pts.length; i += 2) add(view, pts[i], pts[i + 1]);
+      } else {
+        const m = it.screenLock ? view : M.mul(view, RK.boneDelta(pose, RK.effectiveBone(project, it)));
+        add(m, it.x, it.y); add(m, it.x + it.w, it.y); add(m, it.x, it.y + it.h); add(m, it.x + it.w, it.y + it.h);
+      }
+    };
+    walk(item);
+    if (!isFinite(x0)) return null;
+    x0 = Math.max(0, Math.floor(x0) - 3); y0 = Math.max(0, Math.floor(y0) - 3);
+    x1 = Math.min(cw, Math.ceil(x1) + 3); y1 = Math.min(ch, Math.ceil(y1) + 3);
+    return (x1 > x0 && y1 > y0) ? [x0, y0, x1, y1] : null;
+  }
+
+  function drawImageLayer(ctx, project, layer, pose, images, view, alpha, blend) {
+    const dr = RK.layerDrawing(layer, pose); if (!dr) return;
+    const img = images[dr.asset];
+    if (!img || !(img.complete === undefined || img.complete) || !(img.naturalWidth || img.width)) return;
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (alpha <= 0.001) return;
+    ctx.save();
+    ctx.globalAlpha = alpha; ctx.globalCompositeOperation = GCO(blend);
+    if (layer.bind === 'mesh' && !layer.screenLock && RK.layerBones(layer, project).length) {
+      const { md, pts } = RK.deformMesh(project, layer, pose);
+      ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
+      const grow = 0.9 / (Math.sqrt(Math.abs(view[0] * view[3] - view[1] * view[2])) || 1);
+      // mesh triangles overlap a little; draw them into a buffer first when blending so seams do not double up
+      const direct = (!blend || blend === 'normal') && alpha >= 0.999;
+      let tgt = ctx, buf = null;
+      let bb = null;
+      if (!direct) {
+        bb = itemBounds(project, layer, pose, view, ctx.canvas.width, ctx.canvas.height);
+        if (!bb) { ctx.restore(); return; }
+        buf = acquire(bb[2] - bb[0], bb[3] - bb[1]); tgt = buf.getContext('2d');
+        const sv = shiftView(view, bb[0], bb[1]); tgt.setTransform(sv[0], sv[1], sv[2], sv[3], sv[4], sv[5]);
+      }
+      for (let t = 0; t < md.tris.length; t += 3) {
+        const i0 = md.tris[t], i1 = md.tris[t + 1], i2 = md.tris[t + 2];
+        drawTri(tgt, img, iw, ih,
+          [md.uvs[i0 * 2] * iw, md.uvs[i0 * 2 + 1] * ih, md.uvs[i1 * 2] * iw, md.uvs[i1 * 2 + 1] * ih, md.uvs[i2 * 2] * iw, md.uvs[i2 * 2 + 1] * ih],
+          [pts[i0 * 2], pts[i0 * 2 + 1], pts[i1 * 2], pts[i1 * 2 + 1], pts[i2 * 2], pts[i2 * 2 + 1]], grow);
+      }
+      if (buf) { blit(ctx, buf, alpha, blend, bb[0], bb[1]); release(buf); }
+    } else {
+      const m = layer.screenLock ? view : M.mul(view, RK.boneDelta(pose, RK.effectiveBone(project, layer)));
+      ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      if (layer.flipX || layer.flipY) {
+        ctx.translate(layer.x + (layer.flipX ? layer.w : 0), layer.y + (layer.flipY ? layer.h : 0));
+        ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+        ctx.drawImage(img, 0, 0, layer.w, layer.h);
+      } else ctx.drawImage(img, layer.x, layer.y, layer.w, layer.h);
+    }
+    ctx.restore();
+  }
+
+  RK.childrenOf = function (project, groupId, pose) {
+    const list = [];
+    project.layers.forEach((l, i) => { if ((l.group || null) === (groupId || null)) list.push([i, l]); });
+    // a layer whose group no longer exists is treated as top level
+    if (!groupId) project.layers.forEach((l, i) => { if (l.group && !project.layers.some(g => g.id === l.group)) list.push([i, l]); });
+    return list.map(([i, l]) => [i + ((pose && pose.layers[l.id] && pose.layers[l.id].z) || 0) + i * 1e-6, l])
+      .sort((a, b) => a[0] - b[0]).map(e => e[1]);
+  };
+
+  function renderItem(ctx, project, item, pose, images, view, ga, forceNormal) {
+    const st = pose.layers[item.id];
+    const alpha = forceNormal ? 1 : ga * (st ? st.opacity : 1) * (item.opacity == null || st ? 1 : item.opacity);
+    const blend = forceNormal ? 'normal' : item.blend;
+    if (RK.isGroup(item)) {
+      const kids = RK.childrenOf(project, item.id, pose);
+      const needsBuffer = (blend && blend !== 'normal') || alpha < 0.999;
+      if (!needsBuffer) return renderList(ctx, project, kids, pose, images, view, 1);
+      const bb = itemBounds(project, item, pose, view, ctx.canvas.width, ctx.canvas.height); if (!bb) return;
+      const buf = acquire(bb[2] - bb[0], bb[3] - bb[1]);
+      renderList(buf.getContext('2d'), project, kids, pose, images, shiftView(view, bb[0], bb[1]), 1);
+      blit(ctx, buf, alpha, blend, bb[0], bb[1]); release(buf);
+      return;
+    }
+    drawImageLayer(ctx, project, item, pose, images, view, alpha, blend);
+  }
+
+  function renderList(ctx, project, items, pose, images, view, ga) {
+    for (let i = 0; i < items.length; i++) {
+      const base = items[i];
+      const clipped = [];
+      while (i + 1 < items.length && items[i + 1].clip) clipped.push(items[++i]);
+      if (base.hidden) continue;
+      const vis = clipped.filter(c => !c.hidden);
+      if (!vis.length) { renderItem(ctx, project, base, pose, images, view, ga); continue; }
+      // clipping stack: base drawn plain into a mask, clipped layers masked by it, then the
+      // whole stack composites with the base's own blend and opacity
+      // buffers only cover the base's bounds: clipped art can never show outside it
+      const bb = itemBounds(project, base, pose, view, ctx.canvas.width, ctx.canvas.height); if (!bb) continue;
+      const W = bb[2] - bb[0], H = bb[3] - bb[1], sv = shiftView(view, bb[0], bb[1]);
+      const mask = acquire(W, H), stack = acquire(W, H);
+      renderItem(mask.getContext('2d'), project, base, pose, images, sv, 1, true);
+      const sx = stack.getContext('2d'); sx.drawImage(mask, 0, 0, W, H, 0, 0, W, H);
+      for (const c of vis) {
+        const t = acquire(W, H), tx = t.getContext('2d');
+        const st = pose.layers[c.id];
+        renderItem(tx, project, c, pose, images, sv, 1, true);
+        tx.setTransform(1, 0, 0, 1, 0, 0); tx.globalCompositeOperation = 'destination-in'; tx.drawImage(mask, 0, 0, W, H, 0, 0, W, H);
+        blit(sx, t, st ? st.opacity : (c.opacity == null ? 1 : c.opacity), c.blend, 0, 0);
+        release(t);
+      }
+      const bst = pose.layers[base.id];
+      blit(ctx, stack, ga * (bst ? bst.opacity : 1), base.blend, bb[0], bb[1]);
+      release(mask); release(stack);
+    }
+  }
+
   RK.render = function (ctx, project, pose, images, opts) {
     opts = opts || {};
     const view = opts.view || M.ident();
@@ -431,37 +593,7 @@ function RigKitEngine(global) {
     ctx.save();
     ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
     if (opts.background) { ctx.fillStyle = project.background || '#fff'; ctx.fillRect(0, 0, project.width, project.height); }
-    // draw order: array index plus the keyed z offset (stepped), so parts can swap in front / behind
-    const order = project.layers.map((l, i) => [i + ((pose.layers[l.id] && pose.layers[l.id].z) || 0) + i * 1e-6, l]).sort((a, b) => a[0] - b[0]).map(e => e[1]);
-    for (const layer of order) {
-      if (layer.hidden) continue;
-      const dr = RK.layerDrawing(layer, pose); if (!dr) continue;
-      const img = images[dr.asset];
-      if (!img || !(img.complete === undefined || img.complete) || !(img.naturalWidth || img.width)) continue;
-      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
-      const st = pose.layers[layer.id];
-      ctx.globalAlpha = ga * (st ? st.opacity : 1);
-      if (ctx.globalAlpha <= 0.001) continue;
-      if (layer.bind === 'mesh' && RK.layerBones(layer).length) {
-        const { md, pts } = RK.deformMesh(project, layer, pose);
-        ctx.setTransform(view[0], view[1], view[2], view[3], view[4], view[5]);
-        const grow = 0.9 / (Math.sqrt(Math.abs(view[0] * view[3] - view[1] * view[2])) || 1);
-        for (let t = 0; t < md.tris.length; t += 3) {
-          const i0 = md.tris[t], i1 = md.tris[t + 1], i2 = md.tris[t + 2];
-          drawTri(ctx, img, iw, ih,
-            [md.uvs[i0 * 2] * iw, md.uvs[i0 * 2 + 1] * ih, md.uvs[i1 * 2] * iw, md.uvs[i1 * 2 + 1] * ih, md.uvs[i2 * 2] * iw, md.uvs[i2 * 2 + 1] * ih],
-            [pts[i0 * 2], pts[i0 * 2 + 1], pts[i1 * 2], pts[i1 * 2 + 1], pts[i2 * 2], pts[i2 * 2 + 1]], grow);
-        }
-      } else {
-        const m = M.mul(view, RK.boneDelta(pose, layer.bone));
-        ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
-        if (layer.flipX || layer.flipY) {
-          ctx.translate(layer.x + (layer.flipX ? layer.w : 0), layer.y + (layer.flipY ? layer.h : 0));
-          ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
-          ctx.drawImage(img, 0, 0, layer.w, layer.h);
-        } else ctx.drawImage(img, layer.x, layer.y, layer.w, layer.h);
-      }
-    }
+    renderList(ctx, project, RK.childrenOf(project, null, pose), pose, images, view, ga);
     ctx.restore();
   };
 
