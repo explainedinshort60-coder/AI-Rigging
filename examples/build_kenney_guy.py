@@ -42,18 +42,21 @@ B = [
     ('head', 'neck', (450, 362), (450, 196)),
     ('eyes', 'head', (450, 286), (480, 286)),
     ('brows', 'head', (450, 264), (480, 264)),
-    ('armR_up', 'spine', (514, 402), (598, 436)),
+    # collarbone: pivots at the pit of the neck so the shoulder can rise with a raised arm
+    ('shoulderR', 'spine', (462, 396), (514, 402)),
+    ('armR_up', 'shoulderR', (514, 402), (598, 436)),
     ('armR_lo', 'armR_up', (598, 436), (660, 506)),
     ('handR', 'armR_lo', (660, 506), (676, 548)),
     ('legR_up', 'hips', (478, 590), (490, 662)),
     ('legR_lo', 'legR_up', (490, 662), (500, 734)),
     ('footR', 'legR_lo', (500, 734), (540, 750)),
 ]
-# mirrored left side
+# mirrored left side (R -> L on names that end in R or have R_ in them)
+import re
+def mir(n): return re.sub(r'R(?=_|$)', 'L', n) if n else n
 for name, parent, a, t in list(B):
-    if name.endswith(('R_up', 'R_lo')) or name in ('handR', 'footR'):
-        B.append((name.replace('R', 'L', 1) if name not in ('handR', 'footR') else name[:-1] + 'L',
-                  parent.replace('R_', 'L_') if parent and 'R_' in parent else parent,
+    if re.search(r'R(?=_|$)', name):
+        B.append((mir(name), mir(parent) if parent and re.search(r'R(?=_|$)', parent) else parent,
                   (mirror_x(a[0]), a[1]), (mirror_x(t[0]), t[1])))
 
 def trs(x, y, a):

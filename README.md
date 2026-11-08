@@ -87,6 +87,12 @@ The brief already asks for good cutout habits: breakdowns, child parts offset 1 
 
 The engine (`src/engine.js`) has no dependencies. `RigKit.evaluate(project, frame)` gives you the pose and `RigKit.render(ctx, project, pose, images)` draws it, if you want to drive it yourself (scroll-linked animation, game state, lip sync from audio).
 
+## Animation knowledge and lint
+
+- [docs/animation-knowledge](docs/animation-knowledge/): anatomy and body mechanics, good and bad shapes and poses, and the 12 principles as keying rules and review checks, with sources and evidence labels.
+- `node tools/anim-lint.js shot.rig.json` evaluates every frame and flags principle and anatomy problems with frame numbers: linear or uniform eases, parent and child keyed together, everything stopping at once, missing anticipation, dead holds, elbows or knees past straight or popping through it, raised arms with no shoulder rise, left/right twins, squash that loses volume, straight-line paths, flat timing.
+- [docs/REVIEW-02-skills-upgrade.md](docs/REVIEW-02-skills-upgrade.md): the Kenney wave re-animated with those rules, v2 vs v3.
+
 ## Binding guide
 
 Which binding to use when, with a side-by-side test: [docs/BINDING.md](docs/BINDING.md).
