@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="195" viewBox="468 455 150 195"><defs><filter id="p" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="28" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="35" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.45 0 0 0 0.2" result="ga"/>
+<feComposite in="ga" in2="d" operator="in" result="gi"/>
+<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter></defs><g filter="url(#p)">
+  <path d="M548 632 C536 606 536 580 552 562 C566 548 594 552 604 572 C613 594 607 622 596 638 Z" fill="#e9b48e"/>
+  <path d="M553 568 C540 546 521 513 504 485 C499 476 505 468 513 472 C528 494 550 526 568 552 Z" fill="#e9b48e"/>
+  <path d="M556 562 C548 548 534 524 520 500" fill="none" stroke="#cf8f6e" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  <ellipse cx="551" cy="584" rx="14" ry="10" fill="#e9b48e"/><ellipse cx="549" cy="603" rx="13" ry="9" fill="#e9b48e"/><ellipse cx="553" cy="620" rx="11" ry="8" fill="#e9b48e"/>
+  <path d="M540 593 q 12 4 22 -1 M539 612 q 12 4 22 -1" fill="none" stroke="#cf8f6e" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M600 574 C586 572 570 580 564 594 C574 598 590 592 600 584 Z" fill="#e9b48e"/>
+  <path d="M598 585 C588 590 576 594 566 594" fill="none" stroke="#cf8f6e" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M506 480 q 4 -4 9 -1" fill="none" stroke="#cf8f6e" stroke-width="3" stroke-linecap="round"/></g></svg>

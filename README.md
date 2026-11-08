@@ -11,6 +11,14 @@ A character rigged from Kenney's CC0 *Modular Characters* parts and animated in 
 
 ![Kenney guy waving](docs/kenney-guy-wave.gif)
 
+### Original character built in code
+
+**Mira**: every part drawn as hand-coded SVG in a flat, painterly cutout style (32 assets: hair back, fringe, ringlets with dynamics, face, eye, brow and mouth swap sets, glasses, top, pinafore, sleeve, pointing hand), rigged with 11 bones and animated in a 4-second "idea" beat. Builder: `examples/build_mira.py`, parts in `examples/mira-parts/`.
+
+![Mira parts breakdown](docs/mira-parts-sheet.png)
+
+![Mira idea](docs/mira-idea.gif)
+
 ## Why
 
 Moho, Harmony and Spine are great, but their rigs stay inside their apps (or need a paid runtime license). AI Rigging is a small open tool for the web:

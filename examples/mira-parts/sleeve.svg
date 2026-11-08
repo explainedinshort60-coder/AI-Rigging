@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="190" height="340" viewBox="520 590 190 340"><defs><filter id="p" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="27" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="34" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.45 0 0 0 0.2" result="ga"/>
+<feComposite in="ga" in2="d" operator="in" result="gi"/>
+<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter><pattern id="sa" width="60" height="34" patternUnits="userSpaceOnUse" patternTransform="rotate(-13)"><rect width="60" height="19" fill="#246f6c"/><rect y="19" width="60" height="15" fill="#d9c9aa"/></pattern></defs><g filter="url(#p)">
+  <path d="M600 930 C596 820 584 704 556 632 L606 610 C646 690 676 810 700 930 Z" fill="url(#sa)"/>
+  <path d="M600 930 C596 820 584 704 556 632 L572 626 C598 700 612 820 618 930 Z" fill="#1d4f4c" opacity=".35"/>
+  <path d="M552 634 L604 608 L614 628 L562 656 Z" fill="#efe1c5"/></g></svg>

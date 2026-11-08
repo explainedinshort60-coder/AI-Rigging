@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="320" viewBox="330 165 250 320"><defs><filter id="p" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="6" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="4" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="13" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.45 0 0 0 0.2" result="ga"/>
+<feComposite in="ga" in2="d" operator="in" result="gi"/>
+<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter></defs><g filter="url(#p)"><path d="M340 210 C380 250 430 262 470 255 C520 248 552 232 575 215 L575 165 L330 165 Z" fill="#cf8f6e" opacity=".85"/><path d="M566 290 C568 370 535 435 478 468 C520 430 548 372 552 300 Z" fill="#cf8f6e" opacity=".5"/></g></svg>

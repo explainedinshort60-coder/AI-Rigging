@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="245" height="345" viewBox="340 560 245 345"><defs><filter id="p" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="25" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="32" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.45 0 0 0 0.2" result="ga"/>
+<feComposite in="ga" in2="d" operator="in" result="gi"/>
+<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter><pattern id="cd" width="9" height="40" patternUnits="userSpaceOnUse"><rect width="9" height="40" fill="#d9a23b"/><rect width="2.4" height="40" fill="#b9832a" opacity=".55"/></pattern></defs><g filter="url(#p)">
+  <path d="M372 704 C372 690 380 684 392 684 L530 684 C542 684 550 690 550 704 L556 900 L366 900 Z" fill="url(#cd)"/>
+  <path d="M384 690 L392 575 L414 572 L410 690 Z" fill="url(#cd)"/><path d="M512 690 L520 572 L542 575 L540 690 Z" fill="url(#cd)"/>
+  <circle cx="401" cy="694" r="7" fill="#6b3f1d"/><circle cx="526" cy="694" r="7" fill="#6b3f1d"/>
+  <path d="M415 760 L505 760 L500 820 C480 830 440 830 420 820 Z" fill="#b9832a" opacity=".55"/></g></svg>

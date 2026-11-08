@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="245" height="100" viewBox="318 280 245 100"><defs><filter id="p" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="16" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="0.6" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="23" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.45 0 0 0 0.0" result="ga"/>
+<feComposite in="ga" in2="d" operator="in" result="gi"/>
+<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter></defs><g filter="url(#p)">
+  <circle cx="412" cy="330" r="37" fill="#cfe6ef" opacity=".18"/><circle cx="504" cy="327" r="35" fill="#cfe6ef" opacity=".18"/>
+  <circle cx="412" cy="330" r="37" fill="none" stroke="#2a1c19" stroke-width="4.5"/>
+  <circle cx="504" cy="327" r="35" fill="none" stroke="#2a1c19" stroke-width="4.5"/>
+  <path d="M448 323 q 10 -8 21 -1" fill="none" stroke="#2a1c19" stroke-width="4"/>
+  <path d="M376 322 L338 312" stroke="#2a1c19" stroke-width="4" stroke-linecap="round"/>
+  <path d="M392 306 q 10 -8 22 -6" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+  <path d="M486 303 q 9 -7 20 -5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/></g></svg>
